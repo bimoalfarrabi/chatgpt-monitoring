@@ -181,10 +181,27 @@ $sectionTitle = 'mb-2 space-y-2';
     <article class="rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]">
         <h3>Prioritas Hari Ini</h3>
         <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Fokuskan review pada akses yang segera habis dan kuota yang kritis.</p>
-        <p><span class="<?= $statusClasses['expiring_soon'] ?>">Expiring Soon</span> <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]"><?= esc((string) $summary['expiring_soon']) ?> subscription mendekati jatuh tempo.</span></p>
-        <p><span class="<?= $statusClasses['expired'] ?>">Expired</span> <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]"><?= esc((string) $summary['expired']) ?> subscription sudah melewati masa invite.</span></p>
-        <p><span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[rgba(38,37,30,0.1)] bg-surface400 font-display text-[14px] leading-[1.5] text-[rgba(38,37,30,0.6)]">5H Kritis <= 20%</span> <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]"><?= esc((string) $usageKritis5h) ?> subscription.</span></p>
-        <p><span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[rgba(38,37,30,0.1)] bg-surface400 font-display text-[14px] leading-[1.5] text-[rgba(38,37,30,0.6)]">Weekly Kritis <= 20%</span> <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]"><?= esc((string) $usageKritisWeekly) ?> subscription.</span></p>
+        <div class="mt-2 space-y-2">
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="<?= $statusClasses['expiring_soon'] ?>">Expiring Soon</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $summary['expiring_soon']) ?></strong> subscription mendekati jatuh tempo.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="<?= $statusClasses['expired'] ?>">Expired</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $summary['expired']) ?></strong> subscription sudah melewati masa invite.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#9fbbe0_40%,transparent_60%)] text-[#2d4f7d] bg-[color-mix(in_srgb,#9fbbe0_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">5H Kritis <= 20%</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritis5h) ?></strong> subscription.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#c0a8dd_42%,transparent_58%)] text-[#5f4a83] bg-[color-mix(in_srgb,#c0a8dd_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Weekly Kritis <= 20%</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritisWeekly) ?></strong> subscription.</span>
+            </div>
+        </div>
     </article>
 
     <article class="rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]">
