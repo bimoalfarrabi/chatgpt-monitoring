@@ -25,10 +25,11 @@ class AuthController extends BaseController
     public function login(): RedirectResponse
     {
         $data = $this->request->getPost();
-        $data['email'] = strtolower(trim((string) ($data['email'] ?? '')));
+        $data['identity'] = trim((string) ($data['identity'] ?? ''));
+        $identifier = strtolower($data['identity']);
 
         $rules = [
-            'email'    => 'required|valid_email',
+            'identity' => 'required|min_length[3]|max_length[160]',
             'password' => 'required|min_length[8]',
         ];
 
@@ -36,9 +37,14 @@ class AuthController extends BaseController
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $user = $this->users->where('email', $data['email'])->first();
+        $user = $this->users
+            ->groupStart()
+            ->where('email', $identifier)
+            ->orWhere('username', $identifier)
+            ->groupEnd()
+            ->first();
         if (! $user || ! password_verify((string) $data['password'], (string) $user['password_hash'])) {
-            return redirect()->back()->withInput()->with('error', 'Email atau password tidak valid.');
+            return redirect()->back()->withInput()->with('error', 'Username/email atau password tidak valid.');
         }
 
         if ((int) $user['is_active'] !== 1) {
@@ -49,6 +55,7 @@ class AuthController extends BaseController
         session()->set([
             'user_id'    => (int) $user['id'],
             'user_name'  => (string) $user['name'],
+            'username'   => (string) ($user['username'] ?? ''),
             'user_email' => (string) $user['email'],
             'logged_in'  => true,
         ]);
@@ -77,10 +84,12 @@ class AuthController extends BaseController
 
         $data = $this->request->getPost();
         $data['name'] = trim((string) ($data['name'] ?? ''));
+        $data['username'] = strtolower(trim((string) ($data['username'] ?? '')));
         $data['email'] = strtolower(trim((string) ($data['email'] ?? '')));
 
         $rules = [
             'name'                  => 'required|min_length[3]|max_length[120]',
+            'username'              => 'required|min_length[3]|max_length[50]|alpha_dash|is_unique[users.username]',
             'email'                 => 'required|valid_email|is_unique[users.email]',
             'password'              => 'required|min_length[8]|max_length[255]',
             'password_confirmation' => 'required|matches[password]',
@@ -92,6 +101,7 @@ class AuthController extends BaseController
 
         $this->users->insert([
             'name'          => $data['name'],
+            'username'      => $data['username'],
             'email'         => $data['email'],
             'password_hash' => password_hash((string) $data['password'], PASSWORD_DEFAULT),
             'is_active'     => 1,

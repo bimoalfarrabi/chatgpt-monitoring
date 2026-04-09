@@ -20,6 +20,11 @@ $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md bor
         </label>
 
         <label class="<?= $labelClass ?>">
+            Username
+            <input class="<?= $inputClass ?>" type="text" name="username" required value="<?= esc(old('username', '')) ?>" placeholder="huruf/angka/underscore/dash">
+        </label>
+
+        <label class="<?= $labelClass ?>">
             Email
             <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>" placeholder="nama@domain.com">
         </label>

@@ -15,8 +15,8 @@ $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md bor
 
     <form method="post" action="/login" class="mt-4 space-y-3">
         <label class="<?= $labelClass ?>">
-            Email
-            <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>" placeholder="nama@domain.com">
+            Username atau Email
+            <input class="<?= $inputClass ?>" type="text" name="identity" required value="<?= esc(old('identity', '')) ?>" placeholder="username atau nama@domain.com">
         </label>
 
         <label class="<?= $labelClass ?>">

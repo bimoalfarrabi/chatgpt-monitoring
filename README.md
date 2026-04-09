@@ -17,7 +17,7 @@ Dokumen referensi yang diimplementasikan:
 - MySQL/MariaDB (XAMPP)
 
 ## Fitur
-- Akun pengguna + autentikasi session (`register` admin awal, `login`, `logout`)
+- Akun pengguna + autentikasi session (`register` admin awal, `login` via username/email, `logout`)
 - CRUD Accounts
 - CRUD Subscriptions (relasi ke account)
 - Usage per subscription (`5h` dan `weekly`)
@@ -61,6 +61,7 @@ Dokumen referensi yang diimplementasikan:
    - `http://localhost:8080/register`
 11. Setelah itu login di:
    - `http://localhost:8080/login`
+12. Jika update dari versi lama, jalankan migration terbaru agar kolom `username` tersedia.
 
 ## Build Frontend Production
 ```bash
