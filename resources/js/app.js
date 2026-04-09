@@ -10,19 +10,33 @@ userMenus.forEach((menu) => {
     return;
   }
 
+  const closeAllMenus = () => {
+    userMenus.forEach((otherMenu) => {
+      const otherToggle = otherMenu.querySelector('[data-user-menu-toggle]');
+      const otherPanel = otherMenu.querySelector('[data-user-menu-panel]');
+      if (!otherToggle || !otherPanel) {
+        return;
+      }
+
+      otherToggle.setAttribute('aria-expanded', 'false');
+      otherPanel.hidden = true;
+    });
+  };
+
   const openMenu = () => {
+    closeAllMenus();
     toggle.setAttribute('aria-expanded', 'true');
-    panel.classList.remove('pointer-events-none', 'opacity-0', 'translate-y-1', 'scale-[0.98]');
-    panel.classList.add('pointer-events-auto', 'opacity-100', 'translate-y-0', 'scale-100');
+    panel.hidden = false;
   };
 
   const closeMenu = () => {
     toggle.setAttribute('aria-expanded', 'false');
-    panel.classList.remove('pointer-events-auto', 'opacity-100', 'translate-y-0', 'scale-100');
-    panel.classList.add('pointer-events-none', 'opacity-0', 'translate-y-1', 'scale-[0.98]');
+    panel.hidden = true;
   };
 
-  const isOpen = () => toggle.getAttribute('aria-expanded') === 'true';
+  const isOpen = () => !panel.hidden;
+
+  closeMenu();
 
   toggle.addEventListener('click', (event) => {
     event.preventDefault();

@@ -51,7 +51,8 @@ $dropdownToggleInactiveClass = 'inline-flex cursor-pointer items-center gap-1.5 
 
                     <div
                         data-user-menu-panel
-                        class="pointer-events-none absolute right-0 z-40 mt-1 min-w-[240px] translate-y-1 scale-[0.98] rounded-lg border border-[rgba(38,37,30,0.12)] bg-[#f8f7f3] p-1.5 opacity-0 shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px] transition duration-150 ease-out"
+                        hidden
+                        class="absolute right-0 z-40 mt-1 min-w-[240px] rounded-lg border border-[rgba(38,37,30,0.12)] bg-[#f8f7f3] p-1.5 shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]"
                     >
                         <div class="mb-1 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
                             <div class="font-display text-[13px] leading-[1.4] text-[rgba(38,37,30,0.82)]"><?= esc($userName !== '' ? $userName : 'User') ?></div>
