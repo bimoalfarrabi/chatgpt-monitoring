@@ -28,17 +28,21 @@ $userName = (string) (session('user_name') ?? '');
                 <a href="/accounts" class="<?= str_starts_with($path, 'accounts')
                     ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
                     : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Akun</a>
-                <a href="/telegram" class="<?= str_starts_with($path, 'telegram')
-                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Telegram</a>
 
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface300 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)]">
-                    <?= esc($userName !== '' ? $userName : 'User') ?>
-                </span>
+                <details class="relative">
+                    <summary class="list-none [&::-webkit-details-marker]:hidden inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface300 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]">
+                        <?= esc($userName !== '' ? $userName : 'User') ?>
+                        <span class="text-[11px] leading-none">▾</span>
+                    </summary>
 
-                <form method="post" action="/logout">
-                    <button class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]" type="submit">Logout</button>
-                </form>
+                    <div class="absolute right-0 mt-1 min-w-[220px] rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-1.5 shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]">
+                        <a href="/profile" class="block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300">Profile</a>
+                        <a href="/telegram" class="block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300">Pengaturan Telegram</a>
+                        <form method="post" action="/logout" class="mt-1 border-t border-[rgba(38,37,30,0.1)] pt-1">
+                            <button class="block w-full rounded-md px-2.5 py-2 text-left font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300 hover:text-danger" type="submit">Logout</button>
+                        </form>
+                    </div>
+                </details>
             </nav>
         <?php else: ?>
             <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">

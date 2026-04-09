@@ -18,12 +18,13 @@ Dokumen referensi yang diimplementasikan:
 
 ## Fitur
 - Akun pengguna + autentikasi session (`register` admin awal, `login` via username/email, `logout`)
+- Halaman profile user (update nama, username, email, dan password)
 - CRUD Accounts
 - CRUD Subscriptions (relasi ke account)
 - Usage per subscription (`5h` dan `weekly`)
 - History perubahan usage
 - Dashboard monitoring status invite (`Active`, `Expiring Soon`, `Expired`)
-- Telegram settings + test message
+- Telegram settings + test message (per user login)
 - Command reminder: `reminders:subscriptions`
 
 ## Setup Lokal (XAMPP + MySQL)

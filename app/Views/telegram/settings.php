@@ -19,7 +19,7 @@ $timelineItems = [
 
 <section class="space-y-2">
     <h1>Pengaturan Telegram</h1>
-    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Atur bot untuk pengiriman reminder subscription dan lakukan pengujian kirim pesan langsung dari panel ini.</p>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Atur bot untuk pengiriman reminder subscription dan lakukan pengujian kirim pesan langsung dari panel ini. Pengaturan berlaku khusus untuk user yang sedang login.</p>
 </section>
 
 <section class="mt-6 grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">

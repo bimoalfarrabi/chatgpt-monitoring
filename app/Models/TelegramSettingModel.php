@@ -11,6 +11,7 @@ class TelegramSettingModel extends Model
     protected $returnType       = 'array';
     protected $useAutoIncrement = true;
     protected $allowedFields    = [
+        'user_id',
         'bot_token',
         'chat_id',
         'is_active',

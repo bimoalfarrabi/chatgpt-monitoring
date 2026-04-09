@@ -20,6 +20,8 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('accounts/(:num)/delete', 'WebController::deleteAccount/$1');
     $routes->post('subscriptions/(:num)/update', 'WebController::updateSubscription/$1');
     $routes->post('usages/(:num)/update', 'WebController::updateUsage/$1');
+    $routes->get('profile', 'WebController::profile');
+    $routes->post('profile/update', 'WebController::updateProfile');
 
     $routes->get('telegram', 'WebController::telegramSettings');
     $routes->post('telegram/settings', 'WebController::saveTelegramSettings');

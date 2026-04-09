@@ -19,9 +19,11 @@ class TelegramController extends BaseApiController
 
     public function settings(): ResponseInterface
     {
-        $settings = $this->settingsModel->first();
+        $userId = (int) (session('user_id') ?? 0);
+        $settings = $this->settingsModel->where('user_id', $userId)->first();
         if (! $settings) {
             $settings = [
+                'user_id'   => $userId,
                 'bot_token' => null,
                 'chat_id'   => null,
                 'is_active' => 0,
@@ -33,6 +35,7 @@ class TelegramController extends BaseApiController
 
     public function updateSettings(): ResponseInterface
     {
+        $userId = (int) (session('user_id') ?? 0);
         $data = $this->requestData();
 
         $rules = [
@@ -46,12 +49,13 @@ class TelegramController extends BaseApiController
         }
 
         $payload = [
+            'user_id'   => $userId,
             'bot_token' => $data['bot_token'] ?? null,
             'chat_id'   => $data['chat_id'] ?? null,
             'is_active' => (int) ($data['is_active'] ?? 0),
         ];
 
-        $existing = $this->settingsModel->first();
+        $existing = $this->settingsModel->where('user_id', $userId)->first();
         if ($existing) {
             $this->settingsModel->update($existing['id'], $payload);
             $updated = $this->settingsModel->find($existing['id']);
@@ -65,10 +69,11 @@ class TelegramController extends BaseApiController
 
     public function test(): ResponseInterface
     {
+        $userId = (int) (session('user_id') ?? 0);
         $data = $this->requestData();
         $message = $data['message'] ?? 'Test notification dari ChatGPT Monitoring';
 
-        $result = $this->telegram->sendMessage($message);
+        $result = $this->telegram->sendMessage($message, $userId);
         if (! $result['success']) {
             return $this->failMessage($result['message'], 400);
         }

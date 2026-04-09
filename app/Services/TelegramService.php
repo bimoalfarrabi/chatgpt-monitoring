@@ -6,15 +6,22 @@ use App\Models\TelegramSettingModel;
 
 class TelegramService
 {
-    public function sendMessage(string $message): array
+    public function sendMessage(string $message, ?int $userId = null): array
     {
         $settingsModel = new TelegramSettingModel();
-        $settings = $settingsModel->first();
+        if ($userId !== null) {
+            $settings = $settingsModel->where('user_id', $userId)->first();
+        } else {
+            $settings = $settingsModel
+                ->where('is_active', 1)
+                ->orderBy('id', 'ASC')
+                ->first();
+        }
 
         if (! $settings || (int) $settings['is_active'] !== 1) {
             return [
                 'success' => false,
-                'message' => 'Telegram tidak aktif.',
+                'message' => 'Telegram tidak aktif untuk user ini.',
             ];
         }
 
