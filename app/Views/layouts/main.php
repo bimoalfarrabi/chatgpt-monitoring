@@ -4,199 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($pageTitle ?? 'ChatGPT Monitoring') ?></title>
-    <style>
-        :root {
-            --bg: #f4f6fb;
-            --text: #1f2937;
-            --muted: #64748b;
-            --card: #ffffff;
-            --line: #e2e8f0;
-            --green: #16a34a;
-            --yellow: #ca8a04;
-            --red: #dc2626;
-            --blue: #2563eb;
-        }
-
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: radial-gradient(circle at top right, #dbeafe, var(--bg));
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            color: var(--text);
-        }
-
-        .wrap {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .nav {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        .nav a {
-            text-decoration: none;
-            color: var(--blue);
-            padding: 8px 12px;
-            background: #eff6ff;
-            border-radius: 999px;
-            border: 1px solid #bfdbfe;
-            font-weight: 600;
-        }
-
-        .grid {
-            display: grid;
-            gap: 14px;
-        }
-
-        .grid-4 {
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 14px;
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-        }
-
-        h1, h2, h3 { margin-top: 0; }
-        .muted { color: var(--muted); font-size: 14px; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: var(--card);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        th, td {
-            padding: 10px;
-            border-bottom: 1px solid var(--line);
-            text-align: left;
-            vertical-align: top;
-            font-size: 14px;
-        }
-
-        th {
-            background: #f8fafc;
-            color: #334155;
-        }
-
-        .badge {
-            display: inline-block;
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-weight: 700;
-            color: #fff;
-        }
-
-        .badge.active { background: var(--green); }
-        .badge.expiring_soon { background: var(--yellow); }
-        .badge.expired { background: var(--red); }
-
-        .progress {
-            width: 100%;
-            height: 10px;
-            border-radius: 999px;
-            background: #e2e8f0;
-            overflow: hidden;
-            margin-top: 6px;
-        }
-
-        .progress > span {
-            display: block;
-            height: 100%;
-            border-radius: 999px;
-        }
-
-        .p-green { background: var(--green); }
-        .p-yellow { background: var(--yellow); }
-        .p-red { background: var(--red); }
-
-        form.inline { display: inline; }
-        input, textarea, select {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            margin: 4px 0 10px;
-            font-size: 14px;
-            background: #fff;
-        }
-
-        button, .btn {
-            border: 0;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-weight: 600;
-            cursor: pointer;
-            background: var(--blue);
-            color: #fff;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary { background: #475569; }
-        .btn-danger { background: var(--red); }
-
-        .flash {
-            margin-bottom: 14px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .flash.success {
-            background: #dcfce7;
-            border: 1px solid #86efac;
-            color: #166534;
-        }
-
-        .flash.error {
-            background: #fee2e2;
-            border: 1px solid #fca5a5;
-            color: #991b1b;
-        }
-
-        dialog {
-            border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            max-width: 460px;
-            width: 90%;
-        }
-
-        @media (max-width: 768px) {
-            th, td { font-size: 13px; padding: 8px; }
-            .wrap { padding: 14px; }
-        }
-    </style>
+    <?= vite_tags('resources/js/app.js') ?>
 </head>
 <body>
-<div class="wrap">
-    <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="/accounts">Account List</a>
-        <a href="/telegram">Telegram Settings</a>
-    </nav>
+<?php $path = service('uri')->getPath(); ?>
 
+<header class="sticky top-0 z-30 border-b border-[rgba(38,37,30,0.1)] backdrop-blur bg-[color-mix(in_srgb,#f2f1ed_86%,white_14%)]">
+    <div class="mx-auto max-w-[1200px] px-5 py-3 flex items-center justify-between gap-2.5 flex-wrap max-[1279px]:px-[18px] max-[900px]:px-[14px] max-[600px]:items-start max-[600px]:flex-col max-[600px]:gap-2">
+        <a class="inline-flex items-center gap-2 no-underline font-display text-[22px] leading-[1.15] tracking-[-0.25px] font-medium text-ink max-[768px]:text-[20px]" href="/">
+            <span class="h-[9px] w-[9px] rounded-full bg-accent shadow-[0_0_0_4px_rgba(245,78,0,0.12)]"></span>
+            ChatGPT Monitoring
+        </a>
+
+        <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
+            <a href="/" class="<?= in_array($path, ['', '/'], true)
+                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Dasbor</a>
+            <a href="/accounts" class="<?= str_starts_with($path, 'accounts')
+                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Akun</a>
+            <a href="/telegram" class="<?= str_starts_with($path, 'telegram')
+                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Telegram</a>
+        </nav>
+    </div>
+</header>
+
+<main class="mx-auto max-w-[1200px] pt-6 px-5 pb-14 max-[1279px]:px-[18px] max-[1279px]:pb-[46px] max-[900px]:px-[14px] max-[900px]:pb-[38px] max-[600px]:px-[12px] max-[600px]:pb-[28px]">
     <?php if (session()->getFlashdata('success')): ?>
-        <div class="flash success"><?= esc(session()->getFlashdata('success')) ?></div>
+        <div class="mt-4 rounded-lg border border-[color-mix(in_srgb,#1f8a65_30%,transparent_70%)] bg-[color-mix(in_srgb,#1f8a65_14%,#f2f1ed_86%)] px-3 py-2.5 font-ui text-[13px] leading-[1.45] font-medium text-[#165a44]">
+            <?= esc(session()->getFlashdata('success')) ?>
+        </div>
     <?php endif; ?>
 
     <?php if (session()->getFlashdata('error')): ?>
-        <div class="flash error"><?= esc(session()->getFlashdata('error')) ?></div>
+        <div class="mt-4 rounded-lg border border-[color-mix(in_srgb,#cf2d56_30%,transparent_70%)] bg-[color-mix(in_srgb,#cf2d56_12%,#f2f1ed_88%)] px-3 py-2.5 font-ui text-[13px] leading-[1.45] font-medium text-[#8f1f3c]">
+            <?= esc(session()->getFlashdata('error')) ?>
+        </div>
     <?php endif; ?>
 
     <?= $this->renderSection('content') ?>
-</div>
+</main>
 </body>
 </html>

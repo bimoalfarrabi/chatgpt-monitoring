@@ -85,6 +85,8 @@ php_errors.log
 # Composer
 #-------------------------
 vendor/
+node_modules/
+public/build/
 
 #-------------------------
 # IDE / Development Files
@@ -125,3 +127,4 @@ _modules/*
 /results/
 /phpunit*.xml
 .codex
+DESIGN.md

@@ -1,94 +1,118 @@
 <?= $this->extend('layouts/main') ?>
 
 <?= $this->section('content') ?>
-<h1>Account List</h1>
-<p class="muted">Invite Expired mengacu ke masa akses langganan (bukan akun utama).</p>
+<?php
+$statusClasses = [
+    'active' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#1f8a65_35%,transparent_65%)] text-[#165a44] bg-[color-mix(in_srgb,#1f8a65_18%,#f2f1ed_82%)]',
+    'expiring_soon' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#c08532_40%,transparent_60%)] text-[#8f4d10] bg-[color-mix(in_srgb,#c08532_22%,#f2f1ed_78%)]',
+    'expired' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#cf2d56_40%,transparent_60%)] text-[#8f1f3c] bg-[color-mix(in_srgb,#cf2d56_18%,#f2f1ed_82%)]',
+];
 
-<div class="card" style="margin-bottom: 16px;">
-    <h2>Create Account + Subscription</h2>
-    <form method="post" action="/accounts/create">
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-            <div>
-                <label>Account Name</label>
-                <input type="text" name="account_name" required value="">
-            </div>
-            <div>
-                <label>Email</label>
-                <input type="email" name="email" required value="">
-            </div>
-            <div>
-                <label>Password Hint</label>
-                <input type="text" name="password_hint" value="">
-            </div>
-            <div>
-                <label>Store Source</label>
-                <input type="text" name="store_source" required value="">
-            </div>
-            <div>
-                <label>Subscription Type</label>
-                <input type="text" name="subscription_type" required value="">
-            </div>
-            <div>
-                <label>Invite Expired</label>
-                <input type="datetime-local" name="expired_at" required value="">
-            </div>
+$cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
+$tableWrap = 'overflow-auto rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px]';
+$inputClass = 'mt-1 w-full rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[rgba(38,37,30,0.45)] focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]';
+$labelClass = 'font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]';
+$buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-ink transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
+?>
+
+<section class="space-y-2">
+    <h1>Daftar Akun</h1>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Kelola data akun beserta lifecycle subscription/invite. Status menunjukkan kondisi akses invite, bukan kondisi akun utama.</p>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h3>Buat Akun + Subscription</h3>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Satu form untuk registrasi akun baru dengan subscription awal dan baseline usage.</p>
+
+    <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
+        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+            <label class="<?= $labelClass ?>">
+                Nama Akun
+                <input class="<?= $inputClass ?>" type="text" name="account_name" required value="<?= esc(old('account_name', '')) ?>">
+            </label>
+            <label class="<?= $labelClass ?>">
+                Email
+                <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>">
+            </label>
+            <label class="<?= $labelClass ?>">
+                Password Hint
+                <input class="<?= $inputClass ?>" type="text" name="password_hint" value="<?= esc(old('password_hint', '')) ?>">
+            </label>
+            <label class="<?= $labelClass ?>">
+                Sumber Store
+                <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc(old('store_source', '')) ?>">
+            </label>
+            <label class="<?= $labelClass ?>">
+                Tipe Subscription
+                <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc(old('subscription_type', '')) ?>">
+            </label>
+            <label class="<?= $labelClass ?>">
+                Invite Expired
+                <input class="<?= $inputClass ?>" type="datetime-local" name="expired_at" required value="<?= esc(old('expired_at', '')) ?>">
+            </label>
         </div>
 
-        <label>Notes</label>
-        <textarea name="notes" rows="3"></textarea>
+        <label class="<?= $labelClass ?>">
+            Catatan
+            <textarea class="<?= $inputClass ?>" name="notes" rows="3"><?= esc(old('notes', '')) ?></textarea>
+        </label>
 
-        <button type="submit">Simpan</button>
+        <button class="<?= $buttonPrimary ?>" type="submit">Simpan Akun</button>
     </form>
-</div>
+</section>
 
-<table>
-    <thead>
-    <tr>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Store Source</th>
-        <th>Subscription Type</th>
-        <th>Invite Expired</th>
-        <th>Status</th>
-        <th>5H</th>
-        <th>Weekly</th>
-        <th>Actions</th>
-    </tr>
-    </thead>
-    <tbody>
-    <?php if ($accounts === []): ?>
-        <tr><td colspan="9" class="muted">Belum ada data account.</td></tr>
-    <?php endif; ?>
-
-    <?php foreach ($accounts as $account): ?>
-        <?php foreach ($account['subscriptions'] as $subscription): ?>
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Subscription per Akun</h2>
+    <div class="<?= $tableWrap ?>">
+        <table>
+            <thead>
             <tr>
-                <td><?= esc($account['account_name']) ?></td>
-                <td><?= esc($account['email']) ?></td>
-                <td><?= esc($subscription['store_source']) ?></td>
-                <td><?= esc($subscription['subscription_type']) ?></td>
-                <td><?= esc($subscription['expired_at']) ?></td>
-                <td>
-                    <span class="badge <?= esc($subscription['status']) ?>">
-                        <?= esc(\App\Services\SubscriptionStatusService::humanize($subscription['status'])) ?>
-                    </span>
-                </td>
-                <td>
-                    <?php $p5 = (int) ($subscription['usages']['5h']['remaining_percent'] ?? 0); ?>
-                    <?= esc((string) $p5) ?>%
-                    <div class="progress"><span class="<?= $p5 > 60 ? 'p-green' : ($p5 > 30 ? 'p-yellow' : 'p-red') ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
-                </td>
-                <td>
-                    <?php $pw = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
-                    <?= esc((string) $pw) ?>%
-                    <div class="progress"><span class="<?= $pw > 60 ? 'p-green' : ($pw > 30 ? 'p-yellow' : 'p-red') ?>" style="width: <?= esc((string) $pw) ?>%"></span></div>
-                </td>
-                <td>
-                    <a class="btn btn-secondary" href="/accounts/<?= esc((string) $account['id']) ?>">Detail</a>
-                </td>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Sumber Store</th>
+                <th>Tipe Subscription</th>
+                <th>Invite Expired</th>
+                <th>Status</th>
+                <th>5H</th>
+                <th>Weekly</th>
+                <th>Aksi</th>
             </tr>
-        <?php endforeach; ?>
-    <?php endforeach; ?>
-    </tbody>
-</table>
+            </thead>
+            <tbody>
+            <?php if ($accounts === []): ?>
+                <tr><td colspan="9" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data akun.</td></tr>
+            <?php endif; ?>
+
+            <?php foreach ($accounts as $account): ?>
+                <?php foreach ($account['subscriptions'] as $subscription): ?>
+                    <?php $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active']; ?>
+                    <tr>
+                        <td><?= esc($account['account_name']) ?></td>
+                        <td><?= esc($account['email']) ?></td>
+                        <td><?= esc($subscription['store_source']) ?></td>
+                        <td><?= esc($subscription['subscription_type']) ?></td>
+                        <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at']) ?></td>
+                        <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize($subscription['status'])) ?></span></td>
+                        <td>
+                            <?php $p5 = (int) ($subscription['usages']['5h']['remaining_percent'] ?? 0); ?>
+                            <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
+                            <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
+                        </td>
+                        <td>
+                            <?php $pw = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
+                            <span class="font-ui text-[13px]"><?= esc((string) $pw) ?>%</span>
+                            <?php $progressColorW = $pw > 60 ? 'bg-success' : ($pw > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorW ?>" style="width: <?= esc((string) $pw) ?>%"></span></div>
+                        </td>
+                        <td>
+                            <a class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-[3px] no-underline font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.6)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]" href="/accounts/<?= esc((string) $account['id']) ?>">Detail</a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
 <?= $this->endSection() ?>

@@ -12,6 +12,8 @@ Dokumen referensi yang diimplementasikan:
 ## Stack
 - PHP 8.2+ (lokal: `/opt/lampp/bin/php`)
 - CodeIgniter 4
+- Vite
+- Tailwind CSS
 - MySQL/MariaDB (XAMPP)
 
 ## Fitur
@@ -26,7 +28,7 @@ Dokumen referensi yang diimplementasikan:
 ## Setup Lokal (XAMPP + MySQL)
 1. Masuk folder project:
    ```bash
-   cd /home/viasco/Koding/chatgpt-monitoring/monitoring-web
+   cd /home/viasco/Koding/chatgpt-monitoring
    ```
 2. Buat database:
    ```bash
@@ -36,16 +38,31 @@ Dokumen referensi yang diimplementasikan:
    ```bash
    /opt/lampp/bin/php /usr/local/bin/composer install
    ```
-4. Pastikan `.env` sudah benar (default sudah disiapkan untuk MySQL lokal).
-5. Jalankan migration:
+4. Install dependency frontend:
+   ```bash
+   npm install
+   ```
+5. Pastikan `.env` sudah benar (default sudah disiapkan untuk MySQL lokal).
+6. Jalankan migration:
    ```bash
    /opt/lampp/bin/php spark migrate
    ```
-6. Jalankan server development:
+7. Jalankan Vite dev server (terminal terpisah):
+   ```bash
+   npm run dev
+   ```
+8. Jalankan server development CI4:
    ```bash
    /opt/lampp/bin/php spark serve --host 0.0.0.0 --port 8080
    ```
-7. Buka browser: `http://localhost:8080`
+9. Buka browser: `http://localhost:8080`
+
+## Build Frontend Production
+```bash
+npm run build
+```
+
+Output asset akan dibuat ke `public/build` dan otomatis dibaca helper `vite_tags()`.
 
 ## API Utama
 Base URL: `/api`
