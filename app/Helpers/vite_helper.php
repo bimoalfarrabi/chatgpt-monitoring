@@ -31,13 +31,15 @@ if (! function_exists('vite_tags')) {
 
             if (! empty($chunk['css']) && is_array($chunk['css'])) {
                 foreach ($chunk['css'] as $cssFile) {
-                    $href = '/build/' . ltrim((string) $cssFile, '/');
+                    $baseUrl = rtrim((string) config('App')->baseURL, '/');
+                    $href = $baseUrl . '/build/' . ltrim((string) $cssFile, '/');
                     $html[] = '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '">';
                 }
             }
 
             if (! empty($chunk['file'])) {
-                $src = '/build/' . ltrim((string) $chunk['file'], '/');
+                $baseUrl = rtrim((string) config('App')->baseURL, '/');
+                $src = $baseUrl . '/build/' . ltrim((string) $chunk['file'], '/');
                 $html[] = '<script type="module" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '"></script>';
             }
 
