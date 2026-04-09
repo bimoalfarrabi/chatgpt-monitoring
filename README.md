@@ -17,6 +17,7 @@ Dokumen referensi yang diimplementasikan:
 - MySQL/MariaDB (XAMPP)
 
 ## Fitur
+- Akun pengguna + autentikasi session (`register` admin awal, `login`, `logout`)
 - CRUD Accounts
 - CRUD Subscriptions (relasi ke account)
 - Usage per subscription (`5h` dan `weekly`)
@@ -56,6 +57,10 @@ Dokumen referensi yang diimplementasikan:
    /opt/lampp/bin/php spark serve --host 0.0.0.0 --port 8080
    ```
 9. Buka browser: `http://localhost:8080`
+10. Jika belum ada user sama sekali, buat akun admin pertama di:
+   - `http://localhost:8080/register`
+11. Setelah itu login di:
+   - `http://localhost:8080/login`
 
 ## Build Frontend Production
 ```bash
@@ -66,6 +71,10 @@ Output asset akan dibuat ke `public/build` dan otomatis dibaca helper `vite_tags
 
 ## API Utama
 Base URL: `/api`
+
+Catatan autentikasi:
+- Seluruh route web dan API sekarang diproteksi session login.
+- Untuk akses API dari browser/Postman, login dulu via `/login` agar session cookie aktif.
 
 ### Accounts
 - `GET /api/accounts`

@@ -5,20 +5,28 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('/', 'WebController::dashboard');
+$routes->get('login', 'AuthController::loginForm', ['filter' => 'guest']);
+$routes->post('login', 'AuthController::login', ['filter' => 'guest']);
+$routes->get('register', 'AuthController::registerForm', ['filter' => 'guest']);
+$routes->post('register', 'AuthController::register', ['filter' => 'guest']);
+$routes->post('logout', 'AuthController::logout', ['filter' => 'auth']);
 
-$routes->get('/accounts', 'WebController::accountsIndex');
-$routes->post('/accounts/create', 'WebController::createAccount');
-$routes->get('/accounts/(:num)', 'WebController::accountDetail/$1');
-$routes->post('/accounts/(:num)/delete', 'WebController::deleteAccount/$1');
-$routes->post('/subscriptions/(:num)/update', 'WebController::updateSubscription/$1');
-$routes->post('/usages/(:num)/update', 'WebController::updateUsage/$1');
+$routes->group('', ['filter' => 'auth'], static function ($routes) {
+    $routes->get('/', 'WebController::dashboard');
 
-$routes->get('/telegram', 'WebController::telegramSettings');
-$routes->post('/telegram/settings', 'WebController::saveTelegramSettings');
-$routes->post('/telegram/test', 'WebController::telegramTest');
+    $routes->get('accounts', 'WebController::accountsIndex');
+    $routes->post('accounts/create', 'WebController::createAccount');
+    $routes->get('accounts/(:num)', 'WebController::accountDetail/$1');
+    $routes->post('accounts/(:num)/delete', 'WebController::deleteAccount/$1');
+    $routes->post('subscriptions/(:num)/update', 'WebController::updateSubscription/$1');
+    $routes->post('usages/(:num)/update', 'WebController::updateUsage/$1');
 
-$routes->group('api', static function ($routes) {
+    $routes->get('telegram', 'WebController::telegramSettings');
+    $routes->post('telegram/settings', 'WebController::saveTelegramSettings');
+    $routes->post('telegram/test', 'WebController::telegramTest');
+});
+
+$routes->group('api', ['filter' => 'auth'], static function ($routes) {
     $routes->get('accounts', 'Api\\AccountsController::index');
     $routes->get('accounts/(:num)', 'Api\\AccountsController::show/$1');
     $routes->post('accounts', 'Api\\AccountsController::create');

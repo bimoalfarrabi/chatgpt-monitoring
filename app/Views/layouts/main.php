@@ -7,26 +7,49 @@
     <?= vite_tags('resources/js/app.js') ?>
 </head>
 <body>
-<?php $path = service('uri')->getPath(); ?>
+<?php
+$path = service('uri')->getPath();
+$isLoggedIn = (bool) session('logged_in');
+$userName = (string) (session('user_name') ?? '');
+?>
 
 <header class="sticky top-0 z-30 border-b border-[rgba(38,37,30,0.1)] backdrop-blur bg-[color-mix(in_srgb,#f2f1ed_86%,white_14%)]">
     <div class="mx-auto max-w-[1200px] px-5 py-3 flex items-center justify-between gap-2.5 flex-wrap max-[1279px]:px-[18px] max-[900px]:px-[14px] max-[600px]:items-start max-[600px]:flex-col max-[600px]:gap-2">
-        <a class="inline-flex items-center gap-2 no-underline font-display text-[22px] leading-[1.15] tracking-[-0.25px] font-medium text-ink max-[768px]:text-[20px]" href="/">
+        <a class="inline-flex items-center gap-2 no-underline font-display text-[22px] leading-[1.15] tracking-[-0.25px] font-medium text-ink max-[768px]:text-[20px]" href="<?= $isLoggedIn ? '/' : '/login' ?>">
             <span class="h-[9px] w-[9px] rounded-full bg-accent shadow-[0_0_0_4px_rgba(245,78,0,0.12)]"></span>
             ChatGPT Monitoring
         </a>
 
-        <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
-            <a href="/" class="<?= in_array($path, ['', '/'], true)
-                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Dasbor</a>
-            <a href="/accounts" class="<?= str_starts_with($path, 'accounts')
-                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Akun</a>
-            <a href="/telegram" class="<?= str_starts_with($path, 'telegram')
-                ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Telegram</a>
-        </nav>
+        <?php if ($isLoggedIn): ?>
+            <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
+                <a href="/" class="<?= in_array($path, ['', '/'], true)
+                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Dasbor</a>
+                <a href="/accounts" class="<?= str_starts_with($path, 'accounts')
+                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Akun</a>
+                <a href="/telegram" class="<?= str_starts_with($path, 'telegram')
+                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Telegram</a>
+
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface300 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)]">
+                    <?= esc($userName !== '' ? $userName : 'User') ?>
+                </span>
+
+                <form method="post" action="/logout">
+                    <button class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]" type="submit">Logout</button>
+                </form>
+            </nav>
+        <?php else: ?>
+            <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
+                <a href="/login" class="<?= str_starts_with($path, 'login')
+                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?>">Login</a>
+                <a href="/register" class="<?= str_starts_with($path, 'register')
+                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
+                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?>">Register</a>
+            </nav>
+        <?php endif; ?>
     </div>
 </header>
 
