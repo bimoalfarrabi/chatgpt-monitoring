@@ -12,6 +12,17 @@ $path = service('uri')->getPath();
 $isLoggedIn = (bool) session('logged_in');
 $userName = (string) (session('user_name') ?? '');
 $userEmail = (string) (session('user_email') ?? '');
+
+$isDashboard = in_array($path, ['', '/'], true);
+$isAccounts = str_starts_with($path, 'accounts');
+$isProfile = str_starts_with($path, 'profile');
+$isTelegram = str_starts_with($path, 'telegram');
+$isUserMenuActive = $isProfile || $isTelegram;
+
+$navActiveClass = 'no-underline rounded-full border border-[color-mix(in_srgb,#26251e_24%,transparent_76%)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]';
+$navInactiveClass = 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
+$dropdownToggleActiveClass = 'inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,#26251e_24%,transparent_76%)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]';
+$dropdownToggleInactiveClass = 'inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface300 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 ?>
 
 <header class="sticky top-0 z-30 border-b border-[rgba(38,37,30,0.1)] backdrop-blur bg-[color-mix(in_srgb,#f2f1ed_86%,white_14%)]">
@@ -23,12 +34,8 @@ $userEmail = (string) (session('user_email') ?? '');
 
         <?php if ($isLoggedIn): ?>
             <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
-                <a href="/" class="<?= in_array($path, ['', '/'], true)
-                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Dasbor</a>
-                <a href="/accounts" class="<?= str_starts_with($path, 'accounts')
-                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?> max-[768px]:px-[9px]">Akun</a>
+                <a href="/" class="<?= $isDashboard ? $navActiveClass : $navInactiveClass ?> max-[768px]:px-[9px]">Dasbor</a>
+                <a href="/accounts" class="<?= $isAccounts ? $navActiveClass : $navInactiveClass ?> max-[768px]:px-[9px]">Akun</a>
 
                 <div class="relative" data-user-menu>
                     <button
@@ -36,7 +43,7 @@ $userEmail = (string) (session('user_email') ?? '');
                         data-user-menu-toggle
                         aria-haspopup="menu"
                         aria-expanded="false"
-                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface300 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.7)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]"
+                        class="<?= $isUserMenuActive ? $dropdownToggleActiveClass : $dropdownToggleInactiveClass ?>"
                     >
                         <?= esc($userName !== '' ? $userName : 'User') ?>
                         <span class="text-[11px] leading-none">▾</span>
@@ -51,11 +58,11 @@ $userEmail = (string) (session('user_email') ?? '');
                             <div class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]"><?= esc($userEmail !== '' ? $userEmail : '-') ?></div>
                         </div>
 
-                        <a href="/profile" class="<?= str_starts_with($path, 'profile')
-                            ? 'block rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.9)]'
+                        <a href="/profile" class="<?= $isProfile
+                            ? 'block rounded-md border border-[color-mix(in_srgb,#26251e_18%,transparent_82%)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] font-medium text-[rgba(38,37,30,0.92)]'
                             : 'block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300' ?>">Profile</a>
-                        <a href="/telegram" class="<?= str_starts_with($path, 'telegram')
-                            ? 'block rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.9)]'
+                        <a href="/telegram" class="<?= $isTelegram
+                            ? 'block rounded-md border border-[color-mix(in_srgb,#26251e_18%,transparent_82%)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] font-medium text-[rgba(38,37,30,0.92)]'
                             : 'block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300' ?>">Pengaturan Telegram</a>
                         <form method="post" action="/logout" class="mt-1 border-t border-[rgba(38,37,30,0.1)] pt-1">
                             <button class="block w-full rounded-md px-2.5 py-2 text-left font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300 hover:text-danger" type="submit">Logout</button>
@@ -65,12 +72,8 @@ $userEmail = (string) (session('user_email') ?? '');
             </nav>
         <?php else: ?>
             <nav class="flex items-center gap-2 flex-wrap max-[768px]:gap-1.5">
-                <a href="/login" class="<?= str_starts_with($path, 'login')
-                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?>">Login</a>
-                <a href="/register" class="<?= str_starts_with($path, 'register')
-                    ? 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink'
-                    : 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]' ?>">Register</a>
+                <a href="/login" class="<?= str_starts_with($path, 'login') ? $navActiveClass : $navInactiveClass ?>">Login</a>
+                <a href="/register" class="<?= str_starts_with($path, 'register') ? $navActiveClass : $navInactiveClass ?>">Register</a>
             </nav>
         <?php endif; ?>
     </div>
