@@ -231,13 +231,17 @@ $todayMin = date('Y-m-d\\T00:00');
 
                                 <label class="<?= $labelClass ?>">
                                     Sisa Persentase
-                                    <input class="<?= $inputClass ?>" type="number" min="0" max="100" name="remaining_percent" required value="<?= esc((string) $usage['remaining_percent']) ?>">
+                                    <input class="<?= $inputClass ?>" type="number" min="0" max="100" name="remaining_percent" required value="<?= esc((string) $usage['remaining_percent']) ?>" data-usage-percent-input>
                                 </label>
 
                                 <label class="<?= $labelClass ?>">
                                     Waktu Reset
-                                    <input class="<?= $inputClass ?>" type="datetime-local" name="reset_at" min="<?= esc($todayMin) ?>" required value="<?= esc(date('Y-m-d\\TH:i', strtotime((string) $usage['reset_at']))) ?>">
+                                    <input class="<?= $inputClass ?>" type="datetime-local" name="reset_at" min="<?= esc($todayMin) ?>" value="<?= esc(($usage['reset_at'] ?? null) ? date('Y-m-d\\TH:i', strtotime((string) $usage['reset_at'])) : '') ?>" data-usage-reset-input>
                                 </label>
+
+                                <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-usage-reset-note>
+                                    Waktu reset hanya berlaku jika sisa usage di bawah 100%.
+                                </p>
 
                                 <div class="flex flex-wrap gap-2 pt-1">
                                     <button class="<?= $buttonPrimary ?>" type="submit">Simpan</button>
@@ -405,6 +409,38 @@ $todayMin = date('Y-m-d\\T00:00');
 
         select.addEventListener('change', onChange);
         onChange();
+    });
+
+    const usageForms = Array.from(document.querySelectorAll('dialog form[action^="/usages/"]'));
+    usageForms.forEach((form) => {
+        const percentInput = form.querySelector('[data-usage-percent-input]');
+        const resetInput = form.querySelector('[data-usage-reset-input]');
+        const note = form.querySelector('[data-usage-reset-note]');
+
+        if (!percentInput || !resetInput) {
+            return;
+        }
+
+        const syncResetInput = () => {
+            const value = Number(percentInput.value || 0);
+            const needsReset = value < 100;
+
+            resetInput.required = needsReset;
+            resetInput.disabled = !needsReset;
+            if (!needsReset) {
+                resetInput.value = '';
+            }
+
+            if (note) {
+                note.textContent = needsReset
+                    ? 'Waktu reset wajib diisi karena sisa usage di bawah 100%.'
+                    : 'Sisa usage 100%: waktu reset tidak diperlukan.';
+            }
+        };
+
+        percentInput.addEventListener('input', syncResetInput);
+        percentInput.addEventListener('change', syncResetInput);
+        syncResetInput();
     });
 })();
 </script>

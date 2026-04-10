@@ -31,7 +31,9 @@ class SubscriptionsController extends BaseApiController
 
         foreach ($rows as &$row) {
             $row = $this->normalizeSubscriptionRow($row);
-            $row['usages'] = $this->usages->where('subscription_id', $row['id'])->findAll();
+            $row['usages'] = $this->normalizeUsageRows(
+                $this->usages->where('subscription_id', $row['id'])->findAll()
+            );
         }
 
         return $this->ok($rows);
@@ -45,7 +47,9 @@ class SubscriptionsController extends BaseApiController
         }
 
         $row = $this->normalizeSubscriptionRow($row);
-        $row['usages'] = $this->usages->where('subscription_id', $id)->findAll();
+        $row['usages'] = $this->normalizeUsageRows(
+            $this->usages->where('subscription_id', $id)->findAll()
+        );
 
         return $this->ok($row);
     }
@@ -330,7 +334,7 @@ class SubscriptionsController extends BaseApiController
                     'subscription_id' => $subscriptionId,
                     'usage_type' => $usageType,
                     'remaining_percent' => 100,
-                    'reset_at' => $defaultResetAt,
+                    'reset_at' => null,
                 ]);
             }
         }
@@ -340,5 +344,22 @@ class SubscriptionsController extends BaseApiController
                 $this->usages->delete($row['id']);
             }
         }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeUsageRows(array $rows): array
+    {
+        foreach ($rows as &$usage) {
+            if ((int) ($usage['remaining_percent'] ?? 0) >= 100 && ($usage['reset_at'] ?? null) !== null) {
+                $this->usages->update((int) $usage['id'], ['reset_at' => null]);
+                $usage['reset_at'] = null;
+            }
+        }
+
+        return $rows;
     }
 }

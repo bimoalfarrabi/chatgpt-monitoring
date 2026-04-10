@@ -331,7 +331,7 @@ class WebController extends BaseController
 
         $rules = [
             'remaining_percent' => 'required|integer|greater_than_equal_to[0]|less_than_equal_to[100]',
-            'reset_at'          => 'required|valid_date[Y-m-d\\TH:i]',
+            'reset_at'          => 'permit_empty|valid_date[Y-m-d\\TH:i]',
         ];
 
         if (! $this->validateData($data, $rules)) {
@@ -339,9 +339,18 @@ class WebController extends BaseController
         }
 
         $newPercent = (int) $data['remaining_percent'];
-        $resetAt = date('Y-m-d H:i:s', strtotime($data['reset_at']));
-        if ($this->isPastDate($resetAt)) {
-            return redirect()->back()->withInput()->with('error', 'Waktu reset tidak boleh lebih tua dari tanggal hari ini.');
+        $resetAt = null;
+        $rawResetAt = trim((string) ($data['reset_at'] ?? ''));
+
+        if ($newPercent < 100) {
+            if ($rawResetAt === '') {
+                return redirect()->back()->withInput()->with('error', 'Waktu reset wajib diisi jika usage di bawah 100%.');
+            }
+
+            $resetAt = date('Y-m-d H:i:s', strtotime($rawResetAt));
+            if ($this->isPastDate($resetAt)) {
+                return redirect()->back()->withInput()->with('error', 'Waktu reset tidak boleh lebih tua dari tanggal hari ini.');
+            }
         }
 
         $this->histories->insert([
@@ -520,6 +529,11 @@ class WebController extends BaseController
         $usageMap = [];
 
         foreach ($usageRows as $usage) {
+            if ((int) ($usage['remaining_percent'] ?? 0) >= 100 && ($usage['reset_at'] ?? null) !== null) {
+                $this->usages->update($usage['id'], ['reset_at' => null]);
+                $usage['reset_at'] = null;
+            }
+
             $usageMap[$usage['subscription_id']][$usage['usage_type']] = $usage;
         }
 
@@ -698,7 +712,7 @@ class WebController extends BaseController
                     'subscription_id' => $subscriptionId,
                     'usage_type' => $usageType,
                     'remaining_percent' => 100,
-                    'reset_at' => $defaultResetAt,
+                    'reset_at' => null,
                 ]);
             }
         }
