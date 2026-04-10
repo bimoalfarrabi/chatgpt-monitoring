@@ -42,7 +42,7 @@ $statusClasses = [
 ];
 
 $cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
-$tableWrap = 'overflow-auto rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px]';
+$tableWrap = 'overflow-visible';
 $sectionTitle = 'mb-2 space-y-2';
 ?>
 
