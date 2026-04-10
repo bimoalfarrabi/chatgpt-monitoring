@@ -22,14 +22,20 @@ foreach ($subscriptions as $subscription) {
         $butuhTindakan++;
     }
 
+    $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
+    $proType = \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? ''));
+    $isPersonalInvite = $accountType === 'pro' && $proType === 'personal_invite';
+
     $p5 = (int) (($subscription['usages']['5h']['remaining_percent'] ?? 100));
-    $pw = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 100));
+    $pwSeller = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 100));
+    $pwPersonal = (int) (($subscription['usages']['weekly_personal']['remaining_percent'] ?? 100));
 
     if ($p5 <= 20) {
         $usageKritis5h++;
     }
 
-    if ($pw <= 20) {
+    $isWeeklyCritical = $pwSeller <= 20 || ($isPersonalInvite && $pwPersonal <= 20);
+    if ($isWeeklyCritical) {
         $usageKritisWeekly++;
     }
 }
@@ -134,6 +140,7 @@ $sectionTitle = 'mb-2 space-y-2';
                     </td>
                     <td>
                         <?php $isPro = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free')) === 'pro'; ?>
+                        <?php $isPersonalInvite = $isPro && \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? '')) === 'personal_invite'; ?>
                         <?php if (! $isPro): ?>
                             <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
                         <?php else: ?>
@@ -145,11 +152,21 @@ $sectionTitle = 'mb-2 space-y-2';
                         <?php endif; ?>
                     </td>
                     <td>
-                        <?php $usageW = $subscription['usages']['weekly'] ?? null; ?>
-                        <?php $pw = (int) ($usageW['remaining_percent'] ?? 0); ?>
-                        <span class="font-ui text-[13px]"><?= esc((string) $pw) ?>%</span>
-                        <?php $progressColorW = $pw > 60 ? 'bg-success' : ($pw > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorW ?>" style="width: <?= esc((string) $pw) ?>%"></span></div>
+                        <?php $usageWSeller = $subscription['usages']['weekly'] ?? null; ?>
+                        <?php $pwSeller = (int) ($usageWSeller['remaining_percent'] ?? 0); ?>
+                        <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                        <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($isPersonalInvite ? 'Seller' : 'Weekly') ?></div>
+                        <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
+                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
+
+                        <?php if ($isPersonalInvite): ?>
+                            <?php $usageWPersonal = $subscription['usages']['weekly_personal'] ?? null; ?>
+                            <?php $pwPersonal = (int) ($usageWPersonal['remaining_percent'] ?? 0); ?>
+                            <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                            <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
+                            <span class="font-ui text-[13px]"><?= esc((string) $pwPersonal) ?>%</span>
+                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWPersonal ?>" style="width: <?= esc((string) $pwPersonal) ?>%"></span></div>
+                        <?php endif; ?>
                     </td>
                     <td>
                         <?php if ($account): ?>

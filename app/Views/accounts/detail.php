@@ -69,6 +69,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
     $usageAccent = [
         '5h' => 'border-[color-mix(in_srgb,#9fbbe0_36%,rgba(38,37,30,0.1)_64%)] bg-[color-mix(in_srgb,#9fbbe0_16%,#ebeae5_84%)]',
         'weekly' => 'border-[color-mix(in_srgb,#c0a8dd_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#c0a8dd_16%,#ebeae5_84%)]',
+        'weekly_personal' => 'border-[color-mix(in_srgb,#8fb8aa_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#8fb8aa_16%,#ebeae5_84%)]',
     ];
     $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
     $isPro = $accountType === 'pro';
@@ -79,7 +80,11 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
         : ($proType === 'seller_account' ? 'Akun dari Seller' : '-');
     $usageLabels = $isPro
         ? ($proType === 'personal_invite'
-            ? ['5h' => 'Usage 5 Jam (Workspace Seller)', 'weekly' => 'Usage Mingguan (Personal Free)']
+            ? [
+                '5h' => 'Usage 5 Jam (Workspace Seller)',
+                'weekly' => 'Usage Mingguan (Workspace Seller)',
+                'weekly_personal' => 'Usage Mingguan (Personal Free)',
+            ]
             : ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan'])
         : ['weekly' => 'Usage Mingguan'];
     $formId = (int) $subscription['id'];
@@ -384,9 +389,15 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
             <?php endif; ?>
 
             <?php foreach ($history as $row): ?>
+                <?php
+                $usageTypeLabel = match ((string) ($row['usage_type'] ?? '')) {
+                    'weekly_personal' => 'weekly (personal free)',
+                    default => (string) ($row['usage_type'] ?? '-'),
+                };
+                ?>
                 <tr>
                     <td><?= esc((string) $row['subscription_id']) ?></td>
-                    <td><?= esc($row['usage_type']) ?></td>
+                    <td><?= esc($usageTypeLabel) ?></td>
                     <td><?= esc((string) ($row['old_percent'] ?? '-')) ?></td>
                     <td><?= esc((string) $row['new_percent']) ?></td>
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($row['created_at']) ?></td>

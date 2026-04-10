@@ -198,10 +198,20 @@ $createFormExpanded = old('account_name') !== null
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php $pw = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
-                            <span class="font-ui text-[13px]"><?= esc((string) $pw) ?>%</span>
-                            <?php $progressColorW = $pw > 60 ? 'bg-success' : ($pw > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorW ?>" style="width: <?= esc((string) $pw) ?>%"></span></div>
+                            <?php $pwSeller = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
+                            <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                            <?php $weeklyLabelPrimary = ($isPro && $proType === 'personal_invite') ? 'Seller' : 'Weekly'; ?>
+                            <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($weeklyLabelPrimary) ?></div>
+                            <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
+                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
+
+                            <?php if ($isPro && $proType === 'personal_invite'): ?>
+                                <?php $pwPersonal = (int) ($subscription['usages']['weekly_personal']['remaining_percent'] ?? 0); ?>
+                                <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                                <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
+                                <span class="font-ui text-[13px]"><?= esc((string) $pwPersonal) ?>%</span>
+                                <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWPersonal ?>" style="width: <?= esc((string) $pwPersonal) ?>%"></span></div>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <a class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-[3px] no-underline font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.6)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]" href="/accounts/<?= esc((string) $account['id']) ?>">Detail</a>

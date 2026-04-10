@@ -162,6 +162,7 @@ class WebController extends BaseController
         $this->syncUsagesForSubscription(
             $subscriptionId,
             $subscriptionData['account_type'],
+            $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
 
@@ -206,6 +207,7 @@ class WebController extends BaseController
         $this->syncUsagesForSubscription(
             $id,
             $subscriptionData['account_type'],
+            $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
 
@@ -304,6 +306,7 @@ class WebController extends BaseController
         $this->syncUsagesForSubscription(
             (int) $newSubscriptionId,
             'pro',
+            $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
 
@@ -604,10 +607,11 @@ class WebController extends BaseController
             $subscription['is_one_month_duration'] = $isOneMonthDuration ? 1 : 0;
             $subscription['expired_at'] = $expiredAt;
             $subscription['status'] = $status;
-            $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
+            $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType, $proAccountType);
             $subscription['usages'] = [
-                '5h'     => $usageMap[$subscription['id']]['5h'] ?? null,
-                'weekly' => $usageMap[$subscription['id']]['weekly'] ?? null,
+                '5h'              => $usageMap[$subscription['id']]['5h'] ?? null,
+                'weekly'          => $usageMap[$subscription['id']]['weekly'] ?? null,
+                'weekly_personal' => $usageMap[$subscription['id']]['weekly_personal'] ?? null,
             ];
         }
 
@@ -620,6 +624,7 @@ class WebController extends BaseController
      * @return array{
      *     payload: array<string, mixed>,
      *     account_type: string,
+     *     pro_account_type: string|null,
      *     default_reset_at: string,
      *     error: string|null
      * }
@@ -705,6 +710,7 @@ class WebController extends BaseController
                 'status' => $status,
             ],
             'account_type' => $accountType,
+            'pro_account_type' => $proAccountType,
             'default_reset_at' => $subscribedAt ?? date('Y-m-d H:i:s'),
             'error' => null,
         ];
@@ -725,9 +731,9 @@ class WebController extends BaseController
         return date('Y-m-d H:i:s', $timestamp);
     }
 
-    private function syncUsagesForSubscription(int $subscriptionId, string $accountType, string $defaultResetAt): void
+    private function syncUsagesForSubscription(int $subscriptionId, string $accountType, ?string $proAccountType, string $defaultResetAt): void
     {
-        $requiredTypes = SubscriptionStatusService::usageTypes($accountType);
+        $requiredTypes = SubscriptionStatusService::usageTypes($accountType, $proAccountType);
         $existingRows = $this->usages->where('subscription_id', $subscriptionId)->findAll();
         $existingByType = [];
 

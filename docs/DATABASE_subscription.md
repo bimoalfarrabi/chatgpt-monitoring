@@ -26,7 +26,7 @@
 ## account_usages
 - id
 - subscription_id
-- usage_type
+- usage_type (`5h`, `weekly`, `weekly_personal` for `pro + personal_invite`)
 - remaining_percent
 - reset_at
 

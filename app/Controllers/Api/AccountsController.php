@@ -178,7 +178,7 @@ class AccountsController extends BaseApiController
         $subscription['status'] = $status;
         $subscription['pro_account_type'] = $proAccountType;
         $subscription['personal_workspace_name'] = $personalWorkspaceName;
-        $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
+        $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType, $proAccountType);
 
         return $subscription;
     }

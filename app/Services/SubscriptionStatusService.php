@@ -56,11 +56,18 @@ class SubscriptionStatusService
     /**
      * @return array<int, string>
      */
-    public static function usageTypes(string $accountType): array
+    public static function usageTypes(string $accountType, ?string $proAccountType = null): array
     {
-        return self::normalizeAccountType($accountType) === 'pro'
-            ? ['5h', 'weekly']
-            : ['weekly'];
+        $normalizedAccountType = self::normalizeAccountType($accountType);
+        if ($normalizedAccountType !== 'pro') {
+            return ['weekly'];
+        }
+
+        if (self::normalizeProAccountType($proAccountType) === 'personal_invite') {
+            return ['5h', 'weekly', 'weekly_personal'];
+        }
+
+        return ['5h', 'weekly'];
     }
 
     public static function normalizeAccountType(?string $accountType): string

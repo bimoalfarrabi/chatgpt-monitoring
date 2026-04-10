@@ -93,6 +93,7 @@ class SubscriptionsController extends BaseApiController
         $this->syncUsagesForSubscription(
             $id,
             $subscriptionData['account_type'],
+            $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
 
@@ -137,6 +138,7 @@ class SubscriptionsController extends BaseApiController
         $this->syncUsagesForSubscription(
             $id,
             $subscriptionData['account_type'],
+            $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
 
@@ -231,7 +233,7 @@ class SubscriptionsController extends BaseApiController
         $row['is_one_month_duration'] = $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null;
         $row['expired_at'] = $expiredAt;
         $row['status'] = $status;
-        $row['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
+        $row['usage_types'] = SubscriptionStatusService::usageTypes($accountType, $proAccountType);
 
         return $row;
     }
@@ -242,6 +244,7 @@ class SubscriptionsController extends BaseApiController
      * @return array{
      *     payload: array<string, mixed>,
      *     account_type: string,
+     *     pro_account_type: string|null,
      *     default_reset_at: string,
      *     error: string|null
      * }
@@ -326,6 +329,7 @@ class SubscriptionsController extends BaseApiController
                 'status' => $status,
             ],
             'account_type' => $accountType,
+            'pro_account_type' => $proAccountType,
             'default_reset_at' => $subscribedAt ?? date('Y-m-d H:i:s'),
             'error' => null,
         ];
@@ -346,9 +350,9 @@ class SubscriptionsController extends BaseApiController
         return date('Y-m-d H:i:s', $timestamp);
     }
 
-    private function syncUsagesForSubscription(int $subscriptionId, string $accountType, string $defaultResetAt): void
+    private function syncUsagesForSubscription(int $subscriptionId, string $accountType, ?string $proAccountType, string $defaultResetAt): void
     {
-        $requiredTypes = SubscriptionStatusService::usageTypes($accountType);
+        $requiredTypes = SubscriptionStatusService::usageTypes($accountType, $proAccountType);
         $existingRows = $this->usages->where('subscription_id', $subscriptionId)->findAll();
         $existingByType = [];
 
