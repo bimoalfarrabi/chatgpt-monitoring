@@ -15,6 +15,7 @@ class SubscriptionModel extends Model
         'account_type',
         'pro_account_type',
         'workspace_name',
+        'personal_workspace_name',
         'is_workspace_deactivated',
         'store_source',
         'subscription_type',

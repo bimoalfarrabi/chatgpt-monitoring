@@ -101,7 +101,7 @@ class WebController extends BaseController
             ->findAll();
 
         $renewalHistory = $this->renewalHistories
-            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.subscription_type')
+            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type')
             ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
             ->where('subscriptions.account_id', $id)
             ->orderBy('subscription_renewal_histories.renewed_at', 'DESC')
@@ -129,6 +129,7 @@ class WebController extends BaseController
             'account_type'      => 'required|in_list[free,pro]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
+            'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
@@ -180,6 +181,7 @@ class WebController extends BaseController
             'account_type'      => 'required|in_list[free,pro]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
+            'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
@@ -277,6 +279,7 @@ class WebController extends BaseController
             'subscription_type' => 'required|max_length[100]',
             'pro_account_type'  => 'required|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'required|max_length[120]',
+            'personal_workspace_name' => 'permit_empty|max_length[120]',
             'subscribed_at'     => 'required|valid_date[Y-m-d\\TH:i]',
             'is_one_month_duration' => 'permit_empty|in_list[0,1]',
         ];
@@ -544,12 +547,17 @@ class WebController extends BaseController
             $proAccountType = SubscriptionStatusService::normalizeProAccountType($subscription['pro_account_type'] ?? null);
             $workspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
             $workspaceName = $workspaceName === '' ? null : $workspaceName;
+            $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
+            $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
 
             if ($accountType !== 'pro') {
                 $proAccountType = null;
                 $workspaceName = null;
+                $personalWorkspaceName = null;
                 $subscription['subscribed_at'] = null;
                 $isOneMonthDuration = false;
+            } elseif ($proAccountType !== 'personal_invite') {
+                $personalWorkspaceName = null;
             }
 
             $expiredAt = $accountType === 'pro'
@@ -574,6 +582,9 @@ class WebController extends BaseController
             if (($subscription['workspace_name'] ?? null) !== $workspaceName) {
                 $updateData['workspace_name'] = $workspaceName;
             }
+            if (($subscription['personal_workspace_name'] ?? null) !== $personalWorkspaceName) {
+                $updateData['personal_workspace_name'] = $personalWorkspaceName;
+            }
             if ((int) ($subscription['is_workspace_deactivated'] ?? 0) !== ($isWorkspaceDeactivated ? 1 : 0)) {
                 $updateData['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
             }
@@ -588,6 +599,7 @@ class WebController extends BaseController
             $subscription['account_type'] = $accountType;
             $subscription['pro_account_type'] = $proAccountType;
             $subscription['workspace_name'] = $workspaceName;
+            $subscription['personal_workspace_name'] = $personalWorkspaceName;
             $subscription['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
             $subscription['is_one_month_duration'] = $isOneMonthDuration ? 1 : 0;
             $subscription['expired_at'] = $expiredAt;
@@ -618,6 +630,8 @@ class WebController extends BaseController
         $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
+        $personalWorkspaceName = trim((string) ($data['personal_workspace_name'] ?? ''));
+        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
 
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($data['is_workspace_deactivated'] ?? null, false);
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
@@ -650,9 +664,23 @@ class WebController extends BaseController
                     'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
                 ];
             }
+
+            if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
+                ];
+            }
+
+            if ($proAccountType !== 'personal_invite') {
+                $personalWorkspaceName = null;
+            }
         } else {
             $proAccountType = null;
             $workspaceName = null;
+            $personalWorkspaceName = null;
             $isWorkspaceDeactivated = false;
             $subscribedAt = null;
             $isOneMonthDuration = false;
@@ -669,6 +697,7 @@ class WebController extends BaseController
                 'account_type' => $accountType,
                 'pro_account_type' => $proAccountType,
                 'workspace_name' => $workspaceName,
+                'personal_workspace_name' => $personalWorkspaceName,
                 'is_workspace_deactivated' => $isWorkspaceDeactivated ? 1 : 0,
                 'subscribed_at' => $subscribedAt,
                 'is_one_month_duration' => $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null,

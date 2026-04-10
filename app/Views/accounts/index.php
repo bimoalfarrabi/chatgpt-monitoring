@@ -17,6 +17,7 @@ $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md bor
 $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.75)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 
 $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) old('account_type', 'free'));
+$oldProAccountType = \App\Services\SubscriptionStatusService::normalizeProAccountType((string) old('pro_account_type', ''));
 $createFormExpanded = old('account_name') !== null
     || old('email') !== null
     || old('store_source') !== null
@@ -91,6 +92,10 @@ $createFormExpanded = old('account_name') !== null
                     Nama Workspace
                     <input class="<?= $inputClass ?>" type="text" name="workspace_name" data-pro-required value="<?= esc(old('workspace_name', '')) ?>">
                 </label>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' && $oldProAccountType === 'personal_invite' ? '' : 'hidden' ?>" data-personal-invite-only>
+                    Workspace Personal (Free Weekly)
+                    <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" data-personal-invite-required value="<?= esc(old('personal_workspace_name', '')) ?>">
+                </label>
                 <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
                     Status Workspace
                     <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required>
@@ -131,7 +136,8 @@ $createFormExpanded = old('account_name') !== null
                 <th>Email</th>
                 <th>Jenis Akun</th>
                 <th>Jenis Akun Pro</th>
-                <th>Workspace</th>
+                <th>Workspace Seller (Pro)</th>
+                <th>Workspace Personal (Free)</th>
                 <th>Status Workspace</th>
                 <th>Sumber Store</th>
                 <th>Tipe Subscription</th>
@@ -146,7 +152,7 @@ $createFormExpanded = old('account_name') !== null
             </thead>
             <tbody>
             <?php if ($accounts === []): ?>
-                <tr><td colspan="15" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data akun.</td></tr>
+                <tr><td colspan="16" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data akun.</td></tr>
             <?php endif; ?>
 
             <?php foreach ($accounts as $account): ?>
@@ -159,6 +165,7 @@ $createFormExpanded = old('account_name') !== null
                     $proTypeLabel = $proType === 'personal_invite'
                         ? 'Invite Pribadi'
                         : ($proType === 'seller_account' ? 'Akun Seller' : '-');
+                    $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
                     ?>
                     <tr>
                         <td><?= esc($account['account_name']) ?></td>
@@ -166,6 +173,7 @@ $createFormExpanded = old('account_name') !== null
                         <td><?= esc(strtoupper($accountType)) ?></td>
                         <td><?= esc($isPro ? $proTypeLabel : '-') ?></td>
                         <td><?= esc($isPro ? ((string) ($subscription['workspace_name'] ?? '-')) : '-') ?></td>
+                        <td><?= esc($isPro && $proType === 'personal_invite' ? ($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') : '-') ?></td>
                         <td>
                             <?php if ($isPro): ?>
                                 <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?>
@@ -227,15 +235,19 @@ $createFormExpanded = old('account_name') !== null
     }
 
     const accountTypeSelect = document.querySelector('[data-account-type-select]');
+    const proTypeSelect = document.querySelector('select[name="pro_account_type"]');
     if (!accountTypeSelect) {
         return;
     }
 
     const proBlocks = Array.from(document.querySelectorAll('[data-pro-only]'));
     const proRequiredFields = Array.from(document.querySelectorAll('[data-pro-required]'));
+    const personalInviteBlocks = Array.from(document.querySelectorAll('[data-personal-invite-only]'));
+    const personalInviteRequiredFields = Array.from(document.querySelectorAll('[data-personal-invite-required]'));
 
     const syncVisibility = () => {
         const isPro = accountTypeSelect.value === 'pro';
+        const isPersonalInvite = isPro && (proTypeSelect?.value === 'personal_invite');
 
         proBlocks.forEach((element) => {
             element.classList.toggle('hidden', !isPro);
@@ -254,9 +266,23 @@ $createFormExpanded = old('account_name') !== null
                 }
             }
         });
+
+        personalInviteBlocks.forEach((element) => {
+            element.classList.toggle('hidden', !isPersonalInvite);
+        });
+
+        personalInviteRequiredFields.forEach((field) => {
+            field.required = isPersonalInvite;
+            field.disabled = !isPersonalInvite;
+
+            if (!isPersonalInvite) {
+                field.value = '';
+            }
+        });
     };
 
     accountTypeSelect.addEventListener('change', syncVisibility);
+    proTypeSelect?.addEventListener('change', syncVisibility);
     syncVisibility();
 
     const passwordGroups = Array.from(document.querySelectorAll('[data-password-field-group]'));

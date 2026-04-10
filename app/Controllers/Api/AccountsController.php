@@ -139,6 +139,9 @@ class AccountsController extends BaseApiController
     private function normalizeSubscription(array $subscription): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+        $proAccountType = SubscriptionStatusService::normalizeProAccountType($subscription['pro_account_type'] ?? null);
+        $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
+        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
         $subscribedAt = $subscription['subscribed_at'] ?? null;
@@ -147,6 +150,10 @@ class AccountsController extends BaseApiController
             $subscribedAt = null;
             $isOneMonthDuration = false;
             $isWorkspaceDeactivated = false;
+            $proAccountType = null;
+            $personalWorkspaceName = null;
+        } elseif ($proAccountType !== 'personal_invite') {
+            $personalWorkspaceName = null;
         }
 
         $expiredAt = $accountType === 'pro'
@@ -169,6 +176,8 @@ class AccountsController extends BaseApiController
 
         $subscription['expired_at'] = $expiredAt;
         $subscription['status'] = $status;
+        $subscription['pro_account_type'] = $proAccountType;
+        $subscription['personal_workspace_name'] = $personalWorkspaceName;
         $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
 
         return $subscription;

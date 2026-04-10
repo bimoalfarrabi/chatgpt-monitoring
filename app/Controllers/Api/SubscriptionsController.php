@@ -63,6 +63,7 @@ class SubscriptionsController extends BaseApiController
             'account_type'       => 'required|in_list[free,pro]',
             'pro_account_type'   => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'     => 'permit_empty|max_length[120]',
+            'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
             'store_source'       => 'required|max_length[100]',
             'subscription_type'  => 'required|max_length[100]',
@@ -111,6 +112,7 @@ class SubscriptionsController extends BaseApiController
             'account_type'       => 'required|in_list[free,pro]',
             'pro_account_type'   => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'     => 'permit_empty|max_length[120]',
+            'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
@@ -164,6 +166,8 @@ class SubscriptionsController extends BaseApiController
         $proAccountType = SubscriptionStatusService::normalizeProAccountType($row['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($row['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
+        $personalWorkspaceName = trim((string) ($row['personal_workspace_name'] ?? ''));
+        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($row['is_workspace_deactivated'] ?? null, false);
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($row['is_one_month_duration'] ?? null, false);
         $subscribedAt = $this->normalizeDateTimeInput($row['subscribed_at'] ?? null);
@@ -171,9 +175,12 @@ class SubscriptionsController extends BaseApiController
         if ($accountType !== 'pro') {
             $proAccountType = null;
             $workspaceName = null;
+            $personalWorkspaceName = null;
             $isWorkspaceDeactivated = false;
             $subscribedAt = null;
             $isOneMonthDuration = false;
+        } elseif ($proAccountType !== 'personal_invite') {
+            $personalWorkspaceName = null;
         }
 
         $expiredAt = $accountType === 'pro'
@@ -191,6 +198,9 @@ class SubscriptionsController extends BaseApiController
         }
         if (($row['workspace_name'] ?? null) !== $workspaceName) {
             $updateData['workspace_name'] = $workspaceName;
+        }
+        if (($row['personal_workspace_name'] ?? null) !== $personalWorkspaceName) {
+            $updateData['personal_workspace_name'] = $personalWorkspaceName;
         }
         if ((int) ($row['is_workspace_deactivated'] ?? 0) !== ($isWorkspaceDeactivated ? 1 : 0)) {
             $updateData['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
@@ -215,6 +225,7 @@ class SubscriptionsController extends BaseApiController
         $row['account_type'] = $accountType;
         $row['pro_account_type'] = $proAccountType;
         $row['workspace_name'] = $workspaceName;
+        $row['personal_workspace_name'] = $personalWorkspaceName;
         $row['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
         $row['subscribed_at'] = $subscribedAt;
         $row['is_one_month_duration'] = $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null;
@@ -241,6 +252,8 @@ class SubscriptionsController extends BaseApiController
         $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
+        $personalWorkspaceName = trim((string) ($data['personal_workspace_name'] ?? ''));
+        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($data['is_workspace_deactivated'] ?? null, false);
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
         $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
@@ -272,9 +285,23 @@ class SubscriptionsController extends BaseApiController
                     'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
                 ];
             }
+
+            if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
+                ];
+            }
+
+            if ($proAccountType !== 'personal_invite') {
+                $personalWorkspaceName = null;
+            }
         } else {
             $proAccountType = null;
             $workspaceName = null;
+            $personalWorkspaceName = null;
             $isWorkspaceDeactivated = false;
             $subscribedAt = null;
             $isOneMonthDuration = false;
@@ -291,6 +318,7 @@ class SubscriptionsController extends BaseApiController
                 'account_type' => $accountType,
                 'pro_account_type' => $proAccountType,
                 'workspace_name' => $workspaceName,
+                'personal_workspace_name' => $personalWorkspaceName,
                 'is_workspace_deactivated' => $isWorkspaceDeactivated ? 1 : 0,
                 'subscribed_at' => $subscribedAt,
                 'is_one_month_duration' => $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null,

@@ -13,6 +13,13 @@
 - account_id
 - store_source
 - subscription_type
+- account_type
+- pro_account_type
+- workspace_name
+- personal_workspace_name
+- is_workspace_deactivated
+- subscribed_at
+- is_one_month_duration
 - expired_at
 - status
 

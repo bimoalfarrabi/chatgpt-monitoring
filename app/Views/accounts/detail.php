@@ -73,11 +73,14 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
     $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
     $isPro = $accountType === 'pro';
     $proType = (string) ($subscription['pro_account_type'] ?? '');
+    $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
     $proTypeLabel = $proType === 'personal_invite'
         ? 'Invite Akun Pribadi'
         : ($proType === 'seller_account' ? 'Akun dari Seller' : '-');
     $usageLabels = $isPro
-        ? ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan']
+        ? ($proType === 'personal_invite'
+            ? ['5h' => 'Usage 5 Jam (Workspace Seller)', 'weekly' => 'Usage Mingguan (Personal Free)']
+            : ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan'])
         : ['weekly' => 'Usage Mingguan'];
     $formId = (int) $subscription['id'];
     ?>
@@ -114,7 +117,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
 
                 <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                     Jenis Akun Pro
-                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-required="<?= esc((string) $formId) ?>">
+                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-type-select="<?= esc((string) $formId) ?>" data-pro-required="<?= esc((string) $formId) ?>">
                         <option value="">Pilih jenis akun pro</option>
                         <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
                         <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
@@ -123,6 +126,10 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                 <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                     Nama Workspace
                     <input class="<?= $inputClass ?>" type="text" name="workspace_name" value="<?= esc((string) ($subscription['workspace_name'] ?? '')) ?>" data-pro-required="<?= esc((string) $formId) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $isPro && $proType === 'personal_invite' ? '' : 'hidden' ?>" data-personal-invite-only="<?= esc((string) $formId) ?>">
+                    Workspace Personal (Free Weekly)
+                    <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-personal-invite-required="<?= esc((string) $formId) ?>">
                 </label>
                 <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                     Status Workspace
@@ -146,6 +153,11 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
             <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
                 Jenis akun pro saat ini: <?= esc($isPro ? $proTypeLabel : '-') ?>
             </div>
+            <?php if ($isPro && $proType === 'personal_invite'): ?>
+                <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                    Workspace personal free: <?= esc($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') ?>
+                </div>
+            <?php endif; ?>
             <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
         </form>
 
@@ -162,7 +174,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                     Workspace ini sudah deactivated. Buat workspace pengganti, sementara data lama tetap tersimpan sebagai histori.
                 </p>
 
-                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/workspace/create" class="space-y-3">
+                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/workspace/create" class="space-y-3" data-workspace-create-form>
                     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
                         <label class="<?= $labelClass ?>">
                             Sumber Store
@@ -174,7 +186,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                         </label>
                         <label class="<?= $labelClass ?>">
                             Jenis Akun Pro
-                            <select class="<?= $inputClass ?>" name="pro_account_type" required>
+                            <select class="<?= $inputClass ?>" name="pro_account_type" required data-workspace-create-pro-select>
                                 <option value="">Pilih jenis akun pro</option>
                                 <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
                                 <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
@@ -183,6 +195,10 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                         <label class="<?= $labelClass ?>">
                             Nama Workspace Baru
                             <input class="<?= $inputClass ?>" type="text" name="workspace_name" required value="">
+                        </label>
+                        <label class="<?= $labelClass ?> <?= $proType === 'personal_invite' ? '' : 'hidden' ?>" data-workspace-create-personal-wrapper>
+                            Workspace Personal (Free Weekly)
+                            <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-workspace-create-personal-input>
                         </label>
                         <label class="<?= $labelClass ?>">
                             Tanggal Langganan Baru
@@ -270,7 +286,8 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
         <table class="data-table-cards">
             <thead>
             <tr>
-                <th>Workspace</th>
+                <th>Workspace Seller (Pro)</th>
+                <th>Workspace Personal (Free)</th>
                 <th>Jenis Akun Pro</th>
                 <th>Status Workspace</th>
                 <th>Status Lifecycle</th>
@@ -282,7 +299,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
             <tbody>
             <?php if (($workspaceHistory ?? []) === []): ?>
                 <tr>
-                    <td colspan="7" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada histori workspace.</td>
+                    <td colspan="8" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada histori workspace.</td>
                 </tr>
             <?php endif; ?>
 
@@ -296,6 +313,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                 ?>
                 <tr>
                     <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
+                    <td><?= esc($historyProType === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
                     <td><?= esc($historyProTypeLabel) ?></td>
                     <td><?= ((int) ($row['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?></td>
                     <td><span class="<?= $historyStatusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($row['status'] ?? 'active'))) ?></span></td>
@@ -315,7 +333,8 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
         <table class="data-table-cards">
             <thead>
             <tr>
-                <th>Workspace</th>
+                <th>Workspace Seller (Pro)</th>
+                <th>Workspace Personal (Free)</th>
                 <th>Tipe Subscription</th>
                 <th>Expired Lama</th>
                 <th>Expired Baru</th>
@@ -325,13 +344,14 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
             <tbody>
             <?php if (($renewalHistory ?? []) === []): ?>
                 <tr>
-                    <td colspan="5" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada riwayat perpanjangan subscription.</td>
+                    <td colspan="6" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada riwayat perpanjangan subscription.</td>
                 </tr>
             <?php endif; ?>
 
             <?php foreach (($renewalHistory ?? []) as $row): ?>
                 <tr>
                     <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
+                    <td><?= esc(((string) ($row['pro_account_type'] ?? '')) === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
                     <td><?= esc((string) ($row['subscription_type'] ?? '-')) ?></td>
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['old_expired_at'] ?? '-')) ?></td>
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['new_expired_at'] ?? '-')) ?></td>
@@ -385,6 +405,10 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
         const isPro = currentValue === 'pro';
         const blocks = Array.from(document.querySelectorAll(`[data-pro-only="${formId}"]`));
         const requiredFields = Array.from(document.querySelectorAll(`[data-pro-required="${formId}"]`));
+        const personalInviteBlocks = Array.from(document.querySelectorAll(`[data-personal-invite-only="${formId}"]`));
+        const personalInviteRequiredFields = Array.from(document.querySelectorAll(`[data-personal-invite-required="${formId}"]`));
+        const proTypeSelect = document.querySelector(`[data-pro-type-select="${formId}"]`);
+        const isPersonalInvite = isPro && proTypeSelect?.value === 'personal_invite';
 
         blocks.forEach((element) => {
             element.classList.toggle('hidden', !isPro);
@@ -403,6 +427,19 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                 }
             }
         });
+
+        personalInviteBlocks.forEach((element) => {
+            element.classList.toggle('hidden', !isPersonalInvite);
+        });
+
+        personalInviteRequiredFields.forEach((field) => {
+            field.required = isPersonalInvite;
+            field.disabled = !isPersonalInvite;
+
+            if (!isPersonalInvite) {
+                field.value = '';
+            }
+        });
     };
 
     selectors.forEach((select) => {
@@ -416,7 +453,35 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
         };
 
         select.addEventListener('change', onChange);
+        const proTypeSelect = document.querySelector(`[data-pro-type-select="${formId}"]`);
+        proTypeSelect?.addEventListener('change', onChange);
         onChange();
+    });
+
+    const workspaceCreateForms = Array.from(document.querySelectorAll('[data-workspace-create-form]'));
+    workspaceCreateForms.forEach((form) => {
+        const proTypeSelect = form.querySelector('[data-workspace-create-pro-select]');
+        const personalWrapper = form.querySelector('[data-workspace-create-personal-wrapper]');
+        const personalInput = form.querySelector('[data-workspace-create-personal-input]');
+
+        if (!proTypeSelect || !personalWrapper || !personalInput) {
+            return;
+        }
+
+        const syncWorkspaceCreateForm = () => {
+            const isPersonalInvite = proTypeSelect.value === 'personal_invite';
+
+            personalWrapper.classList.toggle('hidden', !isPersonalInvite);
+            personalInput.required = isPersonalInvite;
+            personalInput.disabled = !isPersonalInvite;
+
+            if (!isPersonalInvite) {
+                personalInput.value = '';
+            }
+        };
+
+        proTypeSelect.addEventListener('change', syncWorkspaceCreateForm);
+        syncWorkspaceCreateForm();
     });
 
     const usageForms = Array.from(document.querySelectorAll('dialog form[action^="/usages/"]'));
