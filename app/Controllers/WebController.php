@@ -100,6 +100,7 @@ class WebController extends BaseController
         return view('accounts/detail', [
             'account'       => $account,
             'subscriptions' => $subscriptions,
+            'workspaceHistory' => $this->workspaceHistory($subscriptions),
             'history'       => $history,
             'pageTitle'     => 'Account Detail',
         ]);
@@ -196,6 +197,57 @@ class WebController extends BaseController
         );
 
         return redirect()->back()->with('success', 'Subscription berhasil diupdate.');
+    }
+
+    public function createWorkspaceFromDeactivated(int $id): RedirectResponse
+    {
+        $sourceSubscription = $this->subscriptions->find($id);
+        if (! $sourceSubscription) {
+            return redirect()->back()->with('error', 'Subscription sumber tidak ditemukan.');
+        }
+
+        $accountType = SubscriptionStatusService::normalizeAccountType($sourceSubscription['account_type'] ?? null);
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($sourceSubscription['is_workspace_deactivated'] ?? null);
+        if ($accountType !== 'pro' || ! $isWorkspaceDeactivated) {
+            return redirect()->back()->with('error', 'Workspace baru hanya bisa dibuat dari subscription pro yang status workspace-nya deactivated.');
+        }
+
+        $data = $this->request->getPost();
+        $rules = [
+            'store_source'      => 'required|max_length[100]',
+            'subscription_type' => 'required|max_length[100]',
+            'pro_account_type'  => 'required|in_list[personal_invite,seller_account]',
+            'workspace_name'    => 'required|max_length[120]',
+            'subscribed_at'     => 'required|valid_date[Y-m-d\\TH:i]',
+            'is_one_month_duration' => 'permit_empty|in_list[0,1]',
+        ];
+
+        if (! $this->validateData($data, $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $data['account_type'] = 'pro';
+        $data['is_workspace_deactivated'] = 0;
+        $subscriptionData = $this->buildSubscriptionPayload($data);
+        if ($subscriptionData['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
+        }
+
+        $newSubscriptionId = $this->subscriptions->insert(array_merge([
+            'account_id'        => (int) $sourceSubscription['account_id'],
+            'store_source'      => $data['store_source'],
+            'subscription_type' => $data['subscription_type'],
+        ], $subscriptionData['payload']), true);
+
+        $this->syncUsagesForSubscription(
+            (int) $newSubscriptionId,
+            'pro',
+            $subscriptionData['default_reset_at']
+        );
+
+        return redirect()
+            ->to('/accounts/' . (int) $sourceSubscription['account_id'])
+            ->with('success', 'Workspace baru berhasil dibuat dari workspace yang deactivated.');
     }
 
     public function deleteAccount(int $id): RedirectResponse
@@ -602,6 +654,26 @@ class WebController extends BaseController
     private function isPastDate(string $dateTime): bool
     {
         return date('Y-m-d', strtotime($dateTime)) < date('Y-m-d');
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $subscriptions
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function workspaceHistory(array $subscriptions): array
+    {
+        $rows = array_values(array_filter($subscriptions, static function (array $subscription): bool {
+            return SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null) === 'pro';
+        }));
+
+        usort($rows, static function (array $a, array $b): int {
+            $aTime = strtotime((string) ($a['created_at'] ?? $a['subscribed_at'] ?? '1970-01-01 00:00:00')) ?: 0;
+            $bTime = strtotime((string) ($b['created_at'] ?? $b['subscribed_at'] ?? '1970-01-01 00:00:00')) ?: 0;
+            return $bTime <=> $aTime;
+        });
+
+        return $rows;
     }
 
     private function currentUserId(): int

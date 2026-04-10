@@ -141,6 +141,53 @@ $todayMin = date('Y-m-d\\T00:00');
             <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
         </form>
 
+        <?php if ($isPro && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
+            <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
+                <h4 class="text-[20px]">Buat Workspace Baru</h4>
+                <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                    Workspace ini sudah deactivated. Buat workspace pengganti, sementara data lama tetap tersimpan sebagai histori.
+                </p>
+
+                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/workspace/create" class="space-y-3">
+                    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                        <label class="<?= $labelClass ?>">
+                            Sumber Store
+                            <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc($subscription['store_source']) ?>">
+                        </label>
+                        <label class="<?= $labelClass ?>">
+                            Tipe Subscription
+                            <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
+                        </label>
+                        <label class="<?= $labelClass ?>">
+                            Jenis Akun Pro
+                            <select class="<?= $inputClass ?>" name="pro_account_type" required>
+                                <option value="">Pilih jenis akun pro</option>
+                                <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
+                                <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
+                            </select>
+                        </label>
+                        <label class="<?= $labelClass ?>">
+                            Nama Workspace Baru
+                            <input class="<?= $inputClass ?>" type="text" name="workspace_name" required value="">
+                        </label>
+                        <label class="<?= $labelClass ?>">
+                            Tanggal Langganan Baru
+                            <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" required value="<?= esc(date('Y-m-d\\TH:i')) ?>">
+                        </label>
+                        <label class="<?= $labelClass ?>">
+                            Durasi Satu Bulan?
+                            <select class="<?= $inputClass ?>" name="is_one_month_duration">
+                                <option value="1" selected>Ya</option>
+                                <option value="0">Tidak</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <button class="<?= $buttonPrimary ?>" type="submit">Simpan Workspace Baru</button>
+                </form>
+            </section>
+        <?php endif; ?>
+
         <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
             <?php foreach ($usageLabels as $type => $label): ?>
                 <?php $usage = $subscription['usages'][$type] ?? null; ?>
@@ -198,6 +245,51 @@ $todayMin = date('Y-m-d\\T00:00');
         </div>
     </section>
 <?php endforeach; ?>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Histori Workspace</h2>
+    <div class="<?= $tableWrap ?>">
+        <table>
+            <thead>
+            <tr>
+                <th>Workspace</th>
+                <th>Jenis Akun Pro</th>
+                <th>Status Workspace</th>
+                <th>Status Lifecycle</th>
+                <th>Tanggal Langganan</th>
+                <th>Berakhir (Otomatis)</th>
+                <th>Dibuat Pada</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if (($workspaceHistory ?? []) === []): ?>
+                <tr>
+                    <td colspan="7" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada histori workspace.</td>
+                </tr>
+            <?php endif; ?>
+
+            <?php foreach (($workspaceHistory ?? []) as $row): ?>
+                <?php
+                $historyStatusClass = $statusClasses[$row['status']] ?? $statusClasses['active'];
+                $historyProType = (string) ($row['pro_account_type'] ?? '');
+                $historyProTypeLabel = $historyProType === 'personal_invite'
+                    ? 'Invite Akun Pribadi'
+                    : ($historyProType === 'seller_account' ? 'Akun dari Seller' : '-');
+                ?>
+                <tr>
+                    <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
+                    <td><?= esc($historyProTypeLabel) ?></td>
+                    <td><?= ((int) ($row['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?></td>
+                    <td><span class="<?= $historyStatusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($row['status'] ?? 'active'))) ?></span></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['subscribed_at'] ?? '-')) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['expired_at'] ?? '-')) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['created_at'] ?? '-')) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Riwayat Perubahan Usage</h2>
