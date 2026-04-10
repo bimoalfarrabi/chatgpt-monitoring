@@ -187,11 +187,33 @@ class WebController extends BaseController
                 $subscriptionData['pro_account_type'],
                 $subscriptionData['default_reset_at']
             );
+        } else {
+            $freeTrackingId = $this->subscriptions->insert([
+                'account_id' => $accountId,
+                'account_type' => 'free',
+                'pro_account_type' => null,
+                'workspace_name' => null,
+                'personal_workspace_name' => null,
+                'is_workspace_deactivated' => 0,
+                'store_source' => 'free_account',
+                'subscription_type' => 'Free Weekly',
+                'subscribed_at' => null,
+                'is_one_month_duration' => 0,
+                'expired_at' => null,
+                'status' => 'active',
+            ], true);
+
+            $this->syncUsagesForSubscription(
+                (int) $freeTrackingId,
+                'free',
+                null,
+                date('Y-m-d H:i:s')
+            );
         }
 
         $successMessage = $accountType === 'pro'
             ? 'Account & subscription berhasil dibuat.'
-            : 'Account free berhasil dibuat tanpa subscription.';
+            : 'Account free berhasil dibuat dengan tracking weekly.';
 
         return redirect()->to('/accounts/' . $accountId)->with('success', $successMessage);
     }

@@ -44,7 +44,7 @@ $createFormExpanded = old('account_name') !== null
     </div>
 
     <div id="create-account-panel" data-create-account-panel class="space-y-2 <?= $createFormExpanded ? '' : 'hidden' ?>">
-        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free disimpan sebagai account saja (tanpa subscription). Subscription hanya untuk akun pro (workspace).</p>
+        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free dibuat tanpa form subscription manual, lalu sistem otomatis menyiapkan tracking weekly. Subscription workspace tetap khusus akun pro.</p>
 
         <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
             <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
