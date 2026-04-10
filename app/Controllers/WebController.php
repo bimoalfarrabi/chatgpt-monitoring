@@ -42,7 +42,9 @@ class WebController extends BaseController
             $accountMap[$account['id']] = $account;
         }
 
-        $subscriptions = $this->enrichedSubscriptions($this->subscriptions->orderBy('expired_at', 'ASC')->findAll());
+        $subscriptions = $this->enrichedSubscriptions(
+            $this->subscriptions->where('account_type', 'pro')->orderBy('expired_at', 'ASC')->findAll()
+        );
 
         $summary = [
             'total_accounts' => count($accounts),
@@ -71,7 +73,11 @@ class WebController extends BaseController
         $accounts = $this->accounts->orderBy('id', 'DESC')->findAll();
         foreach ($accounts as &$account) {
             $account['subscriptions'] = $this->enrichedSubscriptions(
-                $this->subscriptions->where('account_id', $account['id'])->orderBy('expired_at', 'ASC')->findAll()
+                $this->subscriptions
+                    ->where('account_id', $account['id'])
+                    ->where('account_type', 'pro')
+                    ->orderBy('expired_at', 'ASC')
+                    ->findAll()
             );
         }
 
@@ -89,7 +95,11 @@ class WebController extends BaseController
         }
 
         $subscriptions = $this->enrichedSubscriptions(
-            $this->subscriptions->where('account_id', $id)->orderBy('expired_at', 'ASC')->findAll()
+            $this->subscriptions
+                ->where('account_id', $id)
+                ->where('account_type', 'pro')
+                ->orderBy('expired_at', 'ASC')
+                ->findAll()
         );
 
         $history = $this->histories
@@ -97,6 +107,7 @@ class WebController extends BaseController
             ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
             ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
             ->where('subscriptions.account_id', $id)
+            ->where('subscriptions.account_type', 'pro')
             ->orderBy('account_usage_histories.created_at', 'DESC')
             ->findAll();
 
@@ -104,6 +115,7 @@ class WebController extends BaseController
             ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type')
             ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
             ->where('subscriptions.account_id', $id)
+            ->where('subscriptions.account_type', 'pro')
             ->orderBy('subscription_renewal_histories.renewed_at', 'DESC')
             ->findAll();
 
@@ -131,8 +143,8 @@ class WebController extends BaseController
             'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
-            'store_source'      => 'required|max_length[100]',
-            'subscription_type' => 'required|max_length[100]',
+            'store_source'      => 'permit_empty|max_length[100]',
+            'subscription_type' => 'permit_empty|max_length[100]',
             'subscribed_at'     => 'permit_empty|valid_date[Y-m-d\\TH:i]',
             'is_one_month_duration' => 'permit_empty',
         ];
@@ -141,9 +153,21 @@ class WebController extends BaseController
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $subscriptionData = $this->buildSubscriptionPayload($data);
-        if ($subscriptionData['error'] !== null) {
-            return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
+        $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
+        $subscriptionData = null;
+        if ($accountType === 'pro') {
+            if (trim((string) ($data['store_source'] ?? '')) === '') {
+                return redirect()->back()->withInput()->with('error', 'Sumber store wajib diisi untuk akun pro.');
+            }
+
+            if (trim((string) ($data['subscription_type'] ?? '')) === '') {
+                return redirect()->back()->withInput()->with('error', 'Tipe subscription wajib diisi untuk akun pro.');
+            }
+
+            $subscriptionData = $this->buildSubscriptionPayload($data);
+            if ($subscriptionData['error'] !== null) {
+                return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
+            }
         }
 
         $accountId = $this->accounts->insert([
@@ -153,20 +177,26 @@ class WebController extends BaseController
             'notes'         => $data['notes'] ?? null,
         ], true);
 
-        $subscriptionId = $this->subscriptions->insert(array_merge([
-            'account_id'        => $accountId,
-            'store_source'      => $data['store_source'],
-            'subscription_type' => $data['subscription_type'],
-        ], $subscriptionData['payload']), true);
+        if ($accountType === 'pro' && $subscriptionData !== null) {
+            $subscriptionId = $this->subscriptions->insert(array_merge([
+                'account_id'        => $accountId,
+                'store_source'      => $data['store_source'],
+                'subscription_type' => $data['subscription_type'],
+            ], $subscriptionData['payload']), true);
 
-        $this->syncUsagesForSubscription(
-            $subscriptionId,
-            $subscriptionData['account_type'],
-            $subscriptionData['pro_account_type'],
-            $subscriptionData['default_reset_at']
-        );
+            $this->syncUsagesForSubscription(
+                $subscriptionId,
+                $subscriptionData['account_type'],
+                $subscriptionData['pro_account_type'],
+                $subscriptionData['default_reset_at']
+            );
+        }
 
-        return redirect()->to('/accounts/' . $accountId)->with('success', 'Account & subscription berhasil dibuat.');
+        $successMessage = $accountType === 'pro'
+            ? 'Account & subscription berhasil dibuat.'
+            : 'Account free berhasil dibuat tanpa subscription.';
+
+        return redirect()->to('/accounts/' . $accountId)->with('success', $successMessage);
     }
 
     public function updateSubscription(int $id): RedirectResponse
@@ -179,7 +209,7 @@ class WebController extends BaseController
         $data = $this->request->getPost();
 
         $rules = [
-            'account_type'      => 'required|in_list[free,pro]',
+            'account_type'      => 'required|in_list[pro]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
@@ -632,6 +662,16 @@ class WebController extends BaseController
     private function buildSubscriptionPayload(array $data): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
+        if ($accountType !== 'pro') {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => null,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Akun free tidak termasuk subscription.',
+            ];
+        }
+
         $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
@@ -642,53 +682,48 @@ class WebController extends BaseController
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
         $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
 
-        if ($accountType === 'pro') {
-            if ($proAccountType === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Jenis akun pro wajib dipilih (invite pribadi atau akun seller).',
-                ];
-            }
+        if ($proAccountType === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => null,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Jenis akun pro wajib dipilih (invite pribadi atau akun seller).',
+            ];
+        }
 
-            if ($workspaceName === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Nama workspace wajib diisi untuk akun pro.',
-                ];
-            }
+        if ($workspaceName === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Nama workspace wajib diisi untuk akun pro.',
+            ];
+        }
 
-            if ($subscribedAt === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
-                ];
-            }
+        if ($subscribedAt === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
+            ];
+        }
 
-            if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
-                ];
-            }
+        if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
+            ];
+        }
 
-            if ($proAccountType !== 'personal_invite') {
-                $personalWorkspaceName = null;
-            }
-        } else {
-            $proAccountType = null;
-            $workspaceName = null;
+        if ($proAccountType !== 'personal_invite') {
             $personalWorkspaceName = null;
-            $isWorkspaceDeactivated = false;
-            $subscribedAt = null;
-            $isOneMonthDuration = false;
         }
 
         $expiredAt = $accountType === 'pro'

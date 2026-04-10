@@ -126,8 +126,7 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                 <label class="<?= $labelClass ?>">
                     Jenis Akun ChatGPT
                     <select class="<?= $inputClass ?>" name="account_type" required data-subscription-type-select="<?= esc((string) $formId) ?>">
-                        <option value="free" <?= $accountType === 'free' ? 'selected' : '' ?>>Free</option>
-                        <option value="pro" <?= $accountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
+                        <option value="pro" selected>Pro (Workspace)</option>
                     </select>
                 </label>
 

@@ -26,6 +26,7 @@ class SubscriptionsController extends BaseApiController
         $rows = $this->subscriptions
             ->select('subscriptions.*, accounts.account_name, accounts.email')
             ->join('accounts', 'accounts.id = subscriptions.account_id')
+            ->where('subscriptions.account_type', 'pro')
             ->orderBy('subscriptions.expired_at', 'ASC')
             ->findAll();
 
@@ -45,6 +46,9 @@ class SubscriptionsController extends BaseApiController
         if (! $row) {
             return $this->failMessage('Subscription tidak ditemukan.', 404);
         }
+        if (SubscriptionStatusService::normalizeAccountType($row['account_type'] ?? null) !== 'pro') {
+            return $this->failMessage('Subscription tidak ditemukan.', 404);
+        }
 
         $row = $this->normalizeSubscriptionRow($row);
         $row['usages'] = $this->normalizeUsageRows(
@@ -60,7 +64,7 @@ class SubscriptionsController extends BaseApiController
 
         $rules = [
             'account_id'         => 'required|integer',
-            'account_type'       => 'required|in_list[free,pro]',
+            'account_type'       => 'required|in_list[pro]',
             'pro_account_type'   => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'     => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
@@ -110,7 +114,7 @@ class SubscriptionsController extends BaseApiController
         $data = $this->requestData();
 
         $rules = [
-            'account_type'       => 'required|in_list[free,pro]',
+            'account_type'       => 'required|in_list[pro]',
             'pro_account_type'   => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'     => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
@@ -252,6 +256,16 @@ class SubscriptionsController extends BaseApiController
     private function buildSubscriptionPayload(array $data): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
+        if ($accountType !== 'pro') {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => null,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Akun free tidak termasuk subscription.',
+            ];
+        }
+
         $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
@@ -261,53 +275,48 @@ class SubscriptionsController extends BaseApiController
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
         $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
 
-        if ($accountType === 'pro') {
-            if ($proAccountType === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Jenis akun pro wajib dipilih (invite pribadi atau akun seller).',
-                ];
-            }
+        if ($proAccountType === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => null,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Jenis akun pro wajib dipilih (invite pribadi atau akun seller).',
+            ];
+        }
 
-            if ($workspaceName === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Nama workspace wajib diisi untuk akun pro.',
-                ];
-            }
+        if ($workspaceName === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Nama workspace wajib diisi untuk akun pro.',
+            ];
+        }
 
-            if ($subscribedAt === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
-                ];
-            }
+        if ($subscribedAt === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
+            ];
+        }
 
-            if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
-                return [
-                    'payload' => [],
-                    'account_type' => $accountType,
-                    'default_reset_at' => date('Y-m-d H:i:s'),
-                    'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
-                ];
-            }
+        if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
+            return [
+                'payload' => [],
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'default_reset_at' => date('Y-m-d H:i:s'),
+                'error' => 'Workspace personal (akun free) wajib diisi untuk tipe invite akun pribadi.',
+            ];
+        }
 
-            if ($proAccountType !== 'personal_invite') {
-                $personalWorkspaceName = null;
-            }
-        } else {
-            $proAccountType = null;
-            $workspaceName = null;
+        if ($proAccountType !== 'personal_invite') {
             $personalWorkspaceName = null;
-            $isWorkspaceDeactivated = false;
-            $subscribedAt = null;
-            $isOneMonthDuration = false;
         }
 
         $expiredAt = $accountType === 'pro'

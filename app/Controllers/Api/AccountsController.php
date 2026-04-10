@@ -25,6 +25,7 @@ class AccountsController extends BaseApiController
         foreach ($accounts as &$account) {
             $account['subscriptions'] = $this->subscriptions
                 ->where('account_id', $account['id'])
+                ->where('account_type', 'pro')
                 ->orderBy('expired_at', 'ASC')
                 ->findAll();
 
@@ -45,6 +46,7 @@ class AccountsController extends BaseApiController
 
         $account['subscriptions'] = $this->subscriptions
             ->where('account_id', $id)
+            ->where('account_type', 'pro')
             ->orderBy('expired_at', 'ASC')
             ->findAll();
 

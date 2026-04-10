@@ -44,7 +44,7 @@ $createFormExpanded = old('account_name') !== null
     </div>
 
     <div id="create-account-panel" data-create-account-panel class="space-y-2 <?= $createFormExpanded ? '' : 'hidden' ?>">
-        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free hanya punya usage weekly. Akun pro (workspace) punya usage 5 jam + weekly.</p>
+        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free disimpan sebagai account saja (tanpa subscription). Subscription hanya untuk akun pro (workspace).</p>
 
         <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
             <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
@@ -71,13 +71,13 @@ $createFormExpanded = old('account_name') !== null
                         <option value="pro" <?= $oldAccountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
                     </select>
                 </label>
-                <label class="<?= $labelClass ?>">
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
                     Sumber Store
-                    <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc(old('store_source', '')) ?>">
+                    <input class="<?= $inputClass ?>" type="text" name="store_source" data-pro-required value="<?= esc(old('store_source', '')) ?>">
                 </label>
-                <label class="<?= $labelClass ?>">
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
                     Tipe Subscription
-                    <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc(old('subscription_type', '')) ?>">
+                    <input class="<?= $inputClass ?>" type="text" name="subscription_type" data-pro-required value="<?= esc(old('subscription_type', '')) ?>">
                 </label>
 
                 <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
@@ -156,68 +156,91 @@ $createFormExpanded = old('account_name') !== null
             <?php endif; ?>
 
             <?php foreach ($accounts as $account): ?>
-                <?php foreach ($account['subscriptions'] as $subscription): ?>
-                    <?php
-                    $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active'];
-                    $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
-                    $isPro = $accountType === 'pro';
-                    $proType = (string) ($subscription['pro_account_type'] ?? '');
-                    $proTypeLabel = $proType === 'personal_invite'
-                        ? 'Invite Pribadi'
-                        : ($proType === 'seller_account' ? 'Akun Seller' : '-');
-                    $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
-                    ?>
+                <?php if (($account['subscriptions'] ?? []) === []): ?>
                     <tr>
                         <td><?= esc($account['account_name']) ?></td>
                         <td><?= esc($account['email']) ?></td>
-                        <td><?= esc(strtoupper($accountType)) ?></td>
-                        <td><?= esc($isPro ? $proTypeLabel : '-') ?></td>
-                        <td><?= esc($isPro ? ((string) ($subscription['workspace_name'] ?? '-')) : '-') ?></td>
-                        <td><?= esc($isPro && $proType === 'personal_invite' ? ($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') : '-') ?></td>
-                        <td>
-                            <?php if ($isPro): ?>
-                                <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?>
-                            <?php else: ?>
-                                -
-                            <?php endif; ?>
-                        </td>
-                        <td><?= esc($subscription['store_source']) ?></td>
-                        <td><?= esc($subscription['subscription_type']) ?></td>
-                        <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($isPro ? ((string) ($subscription['subscribed_at'] ?? '-')) : '-') ?></td>
-                        <td><?= esc($isPro ? (((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'Ya' : 'Tidak') : '-') ?></td>
-                        <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at'] ?? '-') ?></td>
-                        <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) $subscription['status'])) ?></span></td>
-                        <td>
-                            <?php if (! $isPro): ?>
-                                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
-                            <?php else: ?>
-                                <?php $p5 = (int) ($subscription['usages']['5h']['remaining_percent'] ?? 0); ?>
-                                <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
-                                <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                                <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php $pwSeller = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
-                            <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                            <?php $weeklyLabelPrimary = ($isPro && $proType === 'personal_invite') ? 'Seller' : 'Weekly'; ?>
-                            <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($weeklyLabelPrimary) ?></div>
-                            <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
-                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
-
-                            <?php if ($isPro && $proType === 'personal_invite'): ?>
-                                <?php $pwPersonal = (int) ($subscription['usages']['weekly_personal']['remaining_percent'] ?? 0); ?>
-                                <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                                <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
-                                <span class="font-ui text-[13px]"><?= esc((string) $pwPersonal) ?>%</span>
-                                <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWPersonal ?>" style="width: <?= esc((string) $pwPersonal) ?>%"></span></div>
-                            <?php endif; ?>
-                        </td>
+                        <td>FREE</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
                         <td>
                             <a class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-[3px] no-underline font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.6)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]" href="/accounts/<?= esc((string) $account['id']) ?>">Detail</a>
                         </td>
                     </tr>
-                <?php endforeach; ?>
+                <?php else: ?>
+                    <?php foreach ($account['subscriptions'] as $subscription): ?>
+                        <?php
+                        $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active'];
+                        $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
+                        $isPro = $accountType === 'pro';
+                        $proType = (string) ($subscription['pro_account_type'] ?? '');
+                        $proTypeLabel = $proType === 'personal_invite'
+                            ? 'Invite Pribadi'
+                            : ($proType === 'seller_account' ? 'Akun Seller' : '-');
+                        $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
+                        ?>
+                        <tr>
+                            <td><?= esc($account['account_name']) ?></td>
+                            <td><?= esc($account['email']) ?></td>
+                            <td><?= esc(strtoupper($accountType)) ?></td>
+                            <td><?= esc($isPro ? $proTypeLabel : '-') ?></td>
+                            <td><?= esc($isPro ? ((string) ($subscription['workspace_name'] ?? '-')) : '-') ?></td>
+                            <td><?= esc($isPro && $proType === 'personal_invite' ? ($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') : '-') ?></td>
+                            <td>
+                                <?php if ($isPro): ?>
+                                    <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?>
+                                <?php else: ?>
+                                    -
+                                <?php endif; ?>
+                            </td>
+                            <td><?= esc($subscription['store_source']) ?></td>
+                            <td><?= esc($subscription['subscription_type']) ?></td>
+                            <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($isPro ? ((string) ($subscription['subscribed_at'] ?? '-')) : '-') ?></td>
+                            <td><?= esc($isPro ? (((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'Ya' : 'Tidak') : '-') ?></td>
+                            <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at'] ?? '-') ?></td>
+                            <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) $subscription['status'])) ?></span></td>
+                            <td>
+                                <?php if (! $isPro): ?>
+                                    <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
+                                <?php else: ?>
+                                    <?php $p5 = (int) ($subscription['usages']['5h']['remaining_percent'] ?? 0); ?>
+                                    <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
+                                    <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                                    <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php $pwSeller = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
+                                <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                                <?php $weeklyLabelPrimary = ($isPro && $proType === 'personal_invite') ? 'Seller' : 'Weekly'; ?>
+                                <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($weeklyLabelPrimary) ?></div>
+                                <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
+                                <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
+
+                                <?php if ($isPro && $proType === 'personal_invite'): ?>
+                                    <?php $pwPersonal = (int) ($subscription['usages']['weekly_personal']['remaining_percent'] ?? 0); ?>
+                                    <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                                    <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
+                                    <span class="font-ui text-[13px]"><?= esc((string) $pwPersonal) ?>%</span>
+                                    <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWPersonal ?>" style="width: <?= esc((string) $pwPersonal) ?>%"></span></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-[3px] no-underline font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.6)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]" href="/accounts/<?= esc((string) $account['id']) ?>">Detail</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             <?php endforeach; ?>
             </tbody>
         </table>
