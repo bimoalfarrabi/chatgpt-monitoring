@@ -101,7 +101,7 @@ $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType(
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Subscription per Akun</h2>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>Nama</th>

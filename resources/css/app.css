@@ -84,6 +84,96 @@
     background: color-mix(in srgb, #ebeae5 45%, transparent 55%);
   }
 
+  table.data-table-cards {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+  }
+
+  table.data-table-cards thead {
+    display: none;
+  }
+
+  table.data-table-cards tbody,
+  table.data-table-cards tr,
+  table.data-table-cards td {
+    display: block;
+    width: 100%;
+  }
+
+  table.data-table-cards tbody tr {
+    border: 1px solid rgba(38, 37, 30, 0.12);
+    border-radius: 14px;
+    background: color-mix(in srgb, #f2f1ed 88%, white 12%);
+    padding: 12px 14px;
+    box-shadow:
+      rgba(0, 0, 0, 0.02) 0 0 14px,
+      rgba(0, 0, 0, 0.01) 0 0 6px;
+  }
+
+  table.data-table-cards tr:hover td {
+    background: transparent;
+  }
+
+  table.data-table-cards tbody tr:hover {
+    border-color: rgba(38, 37, 30, 0.22);
+    box-shadow:
+      rgba(0, 0, 0, 0.06) 0 10px 24px,
+      rgba(0, 0, 0, 0.03) 0 4px 10px;
+  }
+
+  table.data-table-cards td {
+    @apply px-0 py-2;
+    border-bottom: 1px dashed rgba(38, 37, 30, 0.12);
+  }
+
+  table.data-table-cards td[colspan] {
+    grid-column: 1 / -1;
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  table.data-table-cards td:first-child {
+    padding-top: 0;
+  }
+
+  table.data-table-cards td:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  table.data-table-cards td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-family: "Archivo", sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(38, 37, 30, 0.58);
+  }
+
+  @media (min-width: 900px) {
+    table.data-table-cards tbody tr {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 18px;
+      row-gap: 0;
+      padding: 14px 16px;
+    }
+
+    table.data-table-cards td {
+      padding: 8px 0;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    table.data-table-cards tbody tr {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
   dialog::backdrop {
     background: rgba(38, 37, 30, 0.2);
     backdrop-filter: blur(2px);

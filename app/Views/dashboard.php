@@ -56,7 +56,7 @@ $sectionTitle = 'mb-2 space-y-2';
     <h2>Subscription Terdekat Expired</h2>
     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">5 data teratas berdasarkan tanggal berakhir otomatis paling dekat.</p>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>Nama Akun</th>
@@ -97,7 +97,7 @@ $sectionTitle = 'mb-2 space-y-2';
     <h2>Monitoring Detail Seluruh Subscription</h2>
     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Tampilan lengkap untuk evaluasi status invite, sisa kuota 5 jam, dan kuota mingguan.</p>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>Nama</th>

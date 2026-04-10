@@ -259,7 +259,7 @@ $todayMin = date('Y-m-d\\T00:00');
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Histori Workspace</h2>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>Workspace</th>
@@ -304,7 +304,7 @@ $todayMin = date('Y-m-d\\T00:00');
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Riwayat Perpanjangan Subscription</h2>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>Workspace</th>
@@ -338,7 +338,7 @@ $todayMin = date('Y-m-d\\T00:00');
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Riwayat Perubahan Usage</h2>
     <div class="<?= $tableWrap ?>">
-        <table>
+        <table class="data-table-cards">
             <thead>
             <tr>
                 <th>ID Subscription</th>

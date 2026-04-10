@@ -1,5 +1,35 @@
 import '../css/app.css';
 
+const cardTables = document.querySelectorAll('table.data-table-cards');
+
+cardTables.forEach((table) => {
+  const headers = Array.from(table.querySelectorAll('thead th')).map((th) =>
+    (th.textContent || '').trim()
+  );
+
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+  rows.forEach((row) => {
+    const cells = Array.from(row.querySelectorAll('td'));
+    if (cells.length === 0) {
+      return;
+    }
+
+    if (cells.length === 1 && cells[0].hasAttribute('colspan')) {
+      if (!cells[0].dataset.label) {
+        cells[0].dataset.label = 'Info';
+      }
+      return;
+    }
+
+    cells.forEach((cell, index) => {
+      if (!cell.dataset.label) {
+        cell.dataset.label = headers[index] || `Field ${index + 1}`;
+      }
+    });
+  });
+});
+
 const userMenus = document.querySelectorAll('[data-user-menu]');
 
 userMenus.forEach((menu) => {
