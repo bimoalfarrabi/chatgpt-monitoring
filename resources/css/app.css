@@ -106,9 +106,14 @@
     border-radius: 14px;
     background: color-mix(in srgb, #f2f1ed 88%, white 12%);
     padding: 12px 14px;
+    margin-bottom: 18px;
     box-shadow:
       rgba(0, 0, 0, 0.02) 0 0 14px,
       rgba(0, 0, 0, 0.01) 0 0 6px;
+  }
+
+  table.data-table-cards tbody tr:last-child {
+    margin-bottom: 0;
   }
 
   table.data-table-cards tr:hover td {
