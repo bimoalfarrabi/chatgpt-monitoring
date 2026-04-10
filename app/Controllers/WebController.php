@@ -75,7 +75,6 @@ class WebController extends BaseController
             $account['subscriptions'] = $this->enrichedSubscriptions(
                 $this->subscriptions
                     ->where('account_id', $account['id'])
-                    ->where('account_type', 'pro')
                     ->orderBy('expired_at', 'ASC')
                     ->findAll()
             );
@@ -97,7 +96,6 @@ class WebController extends BaseController
         $subscriptions = $this->enrichedSubscriptions(
             $this->subscriptions
                 ->where('account_id', $id)
-                ->where('account_type', 'pro')
                 ->orderBy('expired_at', 'ASC')
                 ->findAll()
         );
@@ -107,7 +105,6 @@ class WebController extends BaseController
             ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
             ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
             ->where('subscriptions.account_id', $id)
-            ->where('subscriptions.account_type', 'pro')
             ->orderBy('account_usage_histories.created_at', 'DESC')
             ->findAll();
 
