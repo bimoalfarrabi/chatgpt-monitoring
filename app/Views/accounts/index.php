@@ -56,8 +56,12 @@ $createFormExpanded = old('account_name') !== null
                     <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>">
                 </label>
                 <label class="<?= $labelClass ?>">
-                    Password Hint
-                    <input class="<?= $inputClass ?>" type="text" name="password_hint" value="<?= esc(old('password_hint', '')) ?>">
+                    Password
+                    <div class="mt-1 flex flex-wrap items-center gap-2" data-password-field-group>
+                        <input class="<?= $inputClass ?> mt-0 min-w-[180px] flex-1" type="password" name="password_hint" value="<?= esc(old('password_hint', '')) ?>" autocomplete="off" data-password-field>
+                        <button class="<?= $buttonSecondary ?>" type="button" data-password-toggle data-show-label="Unhide" data-hide-label="Hide">Unhide</button>
+                        <button class="<?= $buttonSecondary ?>" type="button" data-password-copy>Copy</button>
+                    </div>
                 </label>
                 <label class="<?= $labelClass ?>">
                     Jenis Akun ChatGPT
@@ -254,6 +258,73 @@ $createFormExpanded = old('account_name') !== null
 
     accountTypeSelect.addEventListener('change', syncVisibility);
     syncVisibility();
+
+    const passwordGroups = Array.from(document.querySelectorAll('[data-password-field-group]'));
+    passwordGroups.forEach((group) => {
+        const field = group.querySelector('[data-password-field]');
+        const toggleButton = group.querySelector('[data-password-toggle]');
+        const copyButton = group.querySelector('[data-password-copy]');
+
+        if (!field) {
+            return;
+        }
+
+        const showLabel = toggleButton?.getAttribute('data-show-label') || 'Unhide';
+        const hideLabel = toggleButton?.getAttribute('data-hide-label') || 'Hide';
+        const copyLabel = copyButton?.textContent || 'Copy';
+
+        const syncToggleLabel = () => {
+            if (!toggleButton) {
+                return;
+            }
+
+            toggleButton.textContent = field.type === 'password' ? showLabel : hideLabel;
+        };
+
+        if (toggleButton) {
+            toggleButton.addEventListener('click', () => {
+                field.type = field.type === 'password' ? 'text' : 'password';
+                syncToggleLabel();
+            });
+            syncToggleLabel();
+        }
+
+        if (copyButton) {
+            copyButton.addEventListener('click', async () => {
+                const value = field.value || '';
+                if (value === '') {
+                    return;
+                }
+
+                let copied = false;
+                if (navigator.clipboard?.writeText) {
+                    try {
+                        await navigator.clipboard.writeText(value);
+                        copied = true;
+                    } catch (error) {
+                        copied = false;
+                    }
+                }
+
+                if (!copied) {
+                    const previousType = field.type;
+                    field.type = 'text';
+                    field.focus();
+                    field.select();
+                    copied = document.execCommand('copy');
+                    field.setSelectionRange(field.value.length, field.value.length);
+                    field.type = previousType;
+                }
+
+                if (copied) {
+                    copyButton.textContent = 'Copied';
+                    setTimeout(() => {
+                        copyButton.textContent = copyLabel;
+                    }, 1200);
+                }
+            });
+        }
+    });
 })();
 </script>
 <?= $this->endSection() ?>

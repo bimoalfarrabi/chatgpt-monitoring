@@ -19,6 +19,7 @@ $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md bor
 $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.75)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 $buttonDanger = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[color-mix(in_srgb,#cf2d56_40%,transparent_60%)] bg-[color-mix(in_srgb,#cf2d56_14%,#f2f1ed_86%)] px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[#8f1f3c] transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,#cf2d56_55%,transparent_45%)] hover:shadow-[rgba(0,0,0,0.1)_0_4px_12px]';
 $todayMin = date('Y-m-d\\T00:00');
+$accountPassword = (string) ($account['password_hint'] ?? '');
 ?>
 
 <section class="space-y-2">
@@ -39,8 +40,15 @@ $todayMin = date('Y-m-d\\T00:00');
 
     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
-            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Password Hint</div>
-            <div class="mt-1 font-display text-[15px] leading-[1.5] text-[rgba(38,37,30,0.82)]"><?= esc($account['password_hint'] ?? '-') ?></div>
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Password</div>
+            <div class="mt-1 flex flex-wrap items-center gap-2" data-password-field-group>
+                <input class="<?= $inputClass ?> mt-0 min-w-[180px] flex-1" type="password" value="<?= esc($accountPassword) ?>" readonly data-password-field>
+                <button class="<?= $buttonSecondary ?>" type="button" data-password-toggle data-show-label="Unhide" data-hide-label="Hide" <?= $accountPassword === '' ? 'disabled' : '' ?>>Unhide</button>
+                <button class="<?= $buttonSecondary ?>" type="button" data-password-copy <?= $accountPassword === '' ? 'disabled' : '' ?>>Copy</button>
+            </div>
+            <?php if ($accountPassword === ''): ?>
+                <div class="mt-2 font-ui text-[12px] text-[rgba(38,37,30,0.55)]">Belum ada password tersimpan.</div>
+            <?php endif; ?>
         </article>
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
             <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Catatan</div>
@@ -441,6 +449,73 @@ $todayMin = date('Y-m-d\\T00:00');
         percentInput.addEventListener('input', syncResetInput);
         percentInput.addEventListener('change', syncResetInput);
         syncResetInput();
+    });
+
+    const passwordGroups = Array.from(document.querySelectorAll('[data-password-field-group]'));
+    passwordGroups.forEach((group) => {
+        const field = group.querySelector('[data-password-field]');
+        const toggleButton = group.querySelector('[data-password-toggle]');
+        const copyButton = group.querySelector('[data-password-copy]');
+
+        if (!field) {
+            return;
+        }
+
+        const showLabel = toggleButton?.getAttribute('data-show-label') || 'Unhide';
+        const hideLabel = toggleButton?.getAttribute('data-hide-label') || 'Hide';
+        const copyLabel = copyButton?.textContent || 'Copy';
+
+        const syncToggleLabel = () => {
+            if (!toggleButton) {
+                return;
+            }
+
+            toggleButton.textContent = field.type === 'password' ? showLabel : hideLabel;
+        };
+
+        if (toggleButton) {
+            toggleButton.addEventListener('click', () => {
+                field.type = field.type === 'password' ? 'text' : 'password';
+                syncToggleLabel();
+            });
+            syncToggleLabel();
+        }
+
+        if (copyButton) {
+            copyButton.addEventListener('click', async () => {
+                const value = field.value || '';
+                if (value === '') {
+                    return;
+                }
+
+                let copied = false;
+                if (navigator.clipboard?.writeText) {
+                    try {
+                        await navigator.clipboard.writeText(value);
+                        copied = true;
+                    } catch (error) {
+                        copied = false;
+                    }
+                }
+
+                if (!copied) {
+                    const previousType = field.type;
+                    field.type = 'text';
+                    field.focus();
+                    field.select();
+                    copied = document.execCommand('copy');
+                    field.setSelectionRange(field.value.length, field.value.length);
+                    field.type = previousType;
+                }
+
+                if (copied) {
+                    copyButton.textContent = 'Copied';
+                    setTimeout(() => {
+                        copyButton.textContent = copyLabel;
+                    }, 1200);
+                }
+            });
+        }
     });
 })();
 </script>
