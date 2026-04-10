@@ -14,8 +14,13 @@ $tableWrap = 'overflow-visible';
 $inputClass = 'mt-1 w-full rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[rgba(38,37,30,0.45)] focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]';
 $labelClass = 'font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]';
 $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-ink transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
+$buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.75)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 
 $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) old('account_type', 'free'));
+$createFormExpanded = old('account_name') !== null
+    || old('email') !== null
+    || old('store_source') !== null
+    || old('subscription_type') !== null;
 ?>
 
 <section class="space-y-2">
@@ -24,78 +29,92 @@ $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType(
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
-    <h3>Buat Akun + Subscription</h3>
-    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free hanya punya usage weekly. Akun pro (workspace) punya usage 5 jam + weekly.</p>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3>Buat Akun + Subscription</h3>
+        <button
+            class="<?= $buttonSecondary ?>"
+            type="button"
+            data-create-account-toggle
+            aria-controls="create-account-panel"
+            aria-expanded="<?= $createFormExpanded ? 'true' : 'false' ?>"
+        >
+            <?= $createFormExpanded ? 'Minimize Form' : 'Expand Form' ?>
+        </button>
+    </div>
 
-    <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
-        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+    <div id="create-account-panel" data-create-account-panel class="space-y-2 <?= $createFormExpanded ? '' : 'hidden' ?>">
+        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free hanya punya usage weekly. Akun pro (workspace) punya usage 5 jam + weekly.</p>
+
+        <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
+            <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                <label class="<?= $labelClass ?>">
+                    Nama Akun
+                    <input class="<?= $inputClass ?>" type="text" name="account_name" required value="<?= esc(old('account_name', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Email
+                    <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Password Hint
+                    <input class="<?= $inputClass ?>" type="text" name="password_hint" value="<?= esc(old('password_hint', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Jenis Akun ChatGPT
+                    <select class="<?= $inputClass ?>" name="account_type" required data-account-type-select>
+                        <option value="free" <?= $oldAccountType === 'free' ? 'selected' : '' ?>>Free</option>
+                        <option value="pro" <?= $oldAccountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
+                    </select>
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Sumber Store
+                    <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc(old('store_source', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Tipe Subscription
+                    <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc(old('subscription_type', '')) ?>">
+                </label>
+
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                    Jenis Akun Pro
+                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-required>
+                        <option value="">Pilih jenis akun pro</option>
+                        <option value="personal_invite" <?= old('pro_account_type') === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
+                        <option value="seller_account" <?= old('pro_account_type') === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
+                    </select>
+                </label>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                    Nama Workspace
+                    <input class="<?= $inputClass ?>" type="text" name="workspace_name" data-pro-required value="<?= esc(old('workspace_name', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                    Status Workspace
+                    <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required>
+                        <option value="0" <?= old('is_workspace_deactivated', '0') === '0' ? 'selected' : '' ?>>Aktif</option>
+                        <option value="1" <?= old('is_workspace_deactivated') === '1' ? 'selected' : '' ?>>Deactivated</option>
+                    </select>
+                </label>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                    Tanggal Langganan
+                    <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" data-pro-required value="<?= esc(old('subscribed_at', '')) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                    Durasi Satu Bulan?
+                    <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required>
+                        <option value="1" <?= old('is_one_month_duration', '1') === '1' ? 'selected' : '' ?>>Ya</option>
+                        <option value="0" <?= old('is_one_month_duration') === '0' ? 'selected' : '' ?>>Tidak</option>
+                    </select>
+                </label>
+            </div>
+
             <label class="<?= $labelClass ?>">
-                Nama Akun
-                <input class="<?= $inputClass ?>" type="text" name="account_name" required value="<?= esc(old('account_name', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?>">
-                Email
-                <input class="<?= $inputClass ?>" type="email" name="email" required value="<?= esc(old('email', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?>">
-                Password Hint
-                <input class="<?= $inputClass ?>" type="text" name="password_hint" value="<?= esc(old('password_hint', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?>">
-                Jenis Akun ChatGPT
-                <select class="<?= $inputClass ?>" name="account_type" required data-account-type-select>
-                    <option value="free" <?= $oldAccountType === 'free' ? 'selected' : '' ?>>Free</option>
-                    <option value="pro" <?= $oldAccountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
-                </select>
-            </label>
-            <label class="<?= $labelClass ?>">
-                Sumber Store
-                <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc(old('store_source', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?>">
-                Tipe Subscription
-                <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc(old('subscription_type', '')) ?>">
+                Catatan
+                <textarea class="<?= $inputClass ?>" name="notes" rows="3"><?= esc(old('notes', '')) ?></textarea>
             </label>
 
-            <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                Jenis Akun Pro
-                <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-required>
-                    <option value="">Pilih jenis akun pro</option>
-                    <option value="personal_invite" <?= old('pro_account_type') === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
-                    <option value="seller_account" <?= old('pro_account_type') === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
-                </select>
-            </label>
-            <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                Nama Workspace
-                <input class="<?= $inputClass ?>" type="text" name="workspace_name" data-pro-required value="<?= esc(old('workspace_name', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                Status Workspace
-                <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required>
-                    <option value="0" <?= old('is_workspace_deactivated', '0') === '0' ? 'selected' : '' ?>>Aktif</option>
-                    <option value="1" <?= old('is_workspace_deactivated') === '1' ? 'selected' : '' ?>>Deactivated</option>
-                </select>
-            </label>
-            <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                Tanggal Langganan
-                <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" data-pro-required value="<?= esc(old('subscribed_at', '')) ?>">
-            </label>
-            <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                Durasi Satu Bulan?
-                <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required>
-                    <option value="1" <?= old('is_one_month_duration', '1') === '1' ? 'selected' : '' ?>>Ya</option>
-                    <option value="0" <?= old('is_one_month_duration') === '0' ? 'selected' : '' ?>>Tidak</option>
-                </select>
-            </label>
-        </div>
-
-        <label class="<?= $labelClass ?>">
-            Catatan
-            <textarea class="<?= $inputClass ?>" name="notes" rows="3"><?= esc(old('notes', '')) ?></textarea>
-        </label>
-
-        <button class="<?= $buttonPrimary ?>" type="submit">Simpan Akun</button>
-    </form>
+            <button class="<?= $buttonPrimary ?>" type="submit">Simpan Akun</button>
+        </form>
+    </div>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
@@ -185,6 +204,24 @@ $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType(
 
 <script>
 (() => {
+    const createFormToggle = document.querySelector('[data-create-account-toggle]');
+    const createFormPanel = document.querySelector('[data-create-account-panel]');
+
+    if (createFormToggle && createFormPanel) {
+        const updateToggleLabel = () => {
+            const expanded = !createFormPanel.classList.contains('hidden');
+            createFormToggle.textContent = expanded ? 'Minimize Form' : 'Expand Form';
+            createFormToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        };
+
+        createFormToggle.addEventListener('click', () => {
+            createFormPanel.classList.toggle('hidden');
+            updateToggleLabel();
+        });
+
+        updateToggleLabel();
+    }
+
     const accountTypeSelect = document.querySelector('[data-account-type-select]');
     if (!accountTypeSelect) {
         return;
