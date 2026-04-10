@@ -32,7 +32,17 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="space-y-1">
             <h3><?= esc($account['account_name']) ?></h3>
-            <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Email: <?= esc($account['email']) ?></p>
+            <div class="flex flex-wrap items-center gap-2">
+                <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Email: <?= esc($account['email']) ?></p>
+                <button
+                    class="<?= $buttonSecondary ?> px-2 py-1 text-[12px]"
+                    type="button"
+                    data-copy-text="<?= esc((string) ($account['email'] ?? ''), 'attr') ?>"
+                    data-copy-default-label="Copy Email"
+                >
+                    Copy Email
+                </button>
+            </div>
         </div>
         <form method="post" action="/accounts/<?= esc((string) $account['id']) ?>/delete" onsubmit="return confirm('Hapus akun ini beserta seluruh datanya?')">
             <button class="<?= $buttonDanger ?>" type="submit">Hapus Akun</button>
@@ -593,6 +603,47 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
                 }
             });
         }
+    });
+
+    const quickCopyButtons = Array.from(document.querySelectorAll('[data-copy-text]'));
+    quickCopyButtons.forEach((button) => {
+        button.addEventListener('click', async () => {
+            const value = button.getAttribute('data-copy-text') || '';
+            if (value === '') {
+                return;
+            }
+
+            let copied = false;
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(value);
+                    copied = true;
+                } catch (error) {
+                    copied = false;
+                }
+            }
+
+            if (!copied) {
+                const tempInput = document.createElement('input');
+                tempInput.type = 'text';
+                tempInput.value = value;
+                tempInput.setAttribute('readonly', 'readonly');
+                tempInput.style.position = 'fixed';
+                tempInput.style.left = '-1000px';
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                copied = document.execCommand('copy');
+                document.body.removeChild(tempInput);
+            }
+
+            if (copied) {
+                const defaultLabel = button.getAttribute('data-copy-default-label') || 'Copy';
+                button.textContent = 'Copied';
+                setTimeout(() => {
+                    button.textContent = defaultLabel;
+                }, 1200);
+            }
+        });
     });
 })();
 </script>
