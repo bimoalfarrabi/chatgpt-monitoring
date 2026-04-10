@@ -3,9 +3,12 @@
 <?= $this->section('content') ?>
 <?php
 $totalSubscription = count($subscriptions);
+$freeSubscriptions = is_array($freeSubscriptions ?? null) ? $freeSubscriptions : [];
+$totalFreeAccount = count($freeSubscriptions);
 $butuhTindakan = 0;
 $usageKritis5h = 0;
 $usageKritisWeekly = 0;
+$usageKritisWeeklyFree = 0;
 
 $urutExpired = $subscriptions;
 usort($urutExpired, static function (array $a, array $b): int {
@@ -16,6 +19,12 @@ usort($urutExpired, static function (array $a, array $b): int {
     return $aTime <=> $bTime;
 });
 $terdekatExpired = array_slice($urutExpired, 0, 5);
+$urutFreeWeekly = $freeSubscriptions;
+usort($urutFreeWeekly, static function (array $a, array $b): int {
+    $aPercent = (int) ($a['usages']['weekly']['remaining_percent'] ?? 0);
+    $bPercent = (int) ($b['usages']['weekly']['remaining_percent'] ?? 0);
+    return $aPercent <=> $bPercent;
+});
 
 foreach ($subscriptions as $subscription) {
     if (in_array($subscription['status'], ['expiring_soon', 'expired', 'deactivated'], true)) {
@@ -37,6 +46,13 @@ foreach ($subscriptions as $subscription) {
     $isWeeklyCritical = $pwSeller <= 20 || ($isPersonalInvite && $pwPersonal <= 20);
     if ($isWeeklyCritical) {
         $usageKritisWeekly++;
+    }
+}
+
+foreach ($freeSubscriptions as $subscription) {
+    $pwWeekly = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 100));
+    if ($pwWeekly <= 20) {
+        $usageKritisWeeklyFree++;
     }
 }
 
@@ -180,6 +196,54 @@ $sectionTitle = 'mb-2 space-y-2';
     </div>
 </section>
 
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Monitoring Free Account</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Khusus akun free dengan fokus utama pada sisa kuota weekly.</p>
+    <div class="<?= $tableWrap ?>">
+        <table class="data-table-cards">
+            <thead>
+            <tr>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Tipe Subscription</th>
+                <th>Status</th>
+                <th>Usage Weekly</th>
+                <th>Aksi</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if ($urutFreeWeekly === []): ?>
+                <tr>
+                    <td colspan="6" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data free account.</td>
+                </tr>
+            <?php endif; ?>
+
+            <?php foreach ($urutFreeWeekly as $subscription): ?>
+                <?php $account = $accountMap[$subscription['account_id']] ?? null; ?>
+                <?php $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active']; ?>
+                <?php $pwWeekly = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 0)); ?>
+                <?php $progressColorWeekly = $pwWeekly > 60 ? 'bg-success' : ($pwWeekly > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                <tr>
+                    <td><?= esc($account['account_name'] ?? '-') ?></td>
+                    <td><?= esc($account['email'] ?? '-') ?></td>
+                    <td><?= esc($subscription['subscription_type'] ?? 'Free Weekly') ?></td>
+                    <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($subscription['status'] ?? 'active'))) ?></span></td>
+                    <td>
+                        <span class="font-ui text-[13px]"><?= esc((string) $pwWeekly) ?>%</span>
+                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWeekly ?>" style="width: <?= esc((string) $pwWeekly) ?>%"></span></div>
+                    </td>
+                    <td>
+                        <?php if ($account): ?>
+                            <a class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-[3px] no-underline font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.6)] hover:text-danger hover:border-[rgba(38,37,30,0.2)]" href="/accounts/<?= esc((string) $account['id']) ?>">Lihat Detail</a>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
 <section class="mt-6 grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] max-[900px]:[grid-template-columns:repeat(2,minmax(0,1fr))] max-[600px]:grid-cols-1">
     <article class="relative overflow-hidden rounded-lg border border-[color-mix(in_srgb,#9fbbe0_36%,rgba(38,37,30,0.1)_64%)] bg-[color-mix(in_srgb,#9fbbe0_16%,#ebeae5_84%)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[color-mix(in_srgb,#9fbbe0_65%,#26251e_35%)]">
         <div class="font-display text-[11px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.72)]">Total Akun</div>
@@ -189,6 +253,11 @@ $sectionTitle = 'mb-2 space-y-2';
     <article class="relative overflow-hidden rounded-lg border border-[color-mix(in_srgb,#c0a8dd_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#c0a8dd_16%,#ebeae5_84%)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[color-mix(in_srgb,#c0a8dd_65%,#26251e_35%)]">
         <div class="font-display text-[11px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.72)]">Total Subscription</div>
         <div class="mt-2 font-display text-[clamp(34px,3.3vw,44px)] leading-[1.08] tracking-[-0.65px] font-semibold text-[color-mix(in_srgb,#c0a8dd_40%,#26251e_60%)]"><?= esc((string) $totalSubscription) ?></div>
+    </article>
+
+    <article class="relative overflow-hidden rounded-lg border border-[color-mix(in_srgb,#8fb8aa_36%,rgba(38,37,30,0.1)_64%)] bg-[color-mix(in_srgb,#8fb8aa_16%,#ebeae5_84%)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[color-mix(in_srgb,#8fb8aa_65%,#26251e_35%)]">
+        <div class="font-display text-[11px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.72)]">Total Free Account</div>
+        <div class="mt-2 font-display text-[clamp(34px,3.3vw,44px)] leading-[1.08] tracking-[-0.65px] font-semibold text-[color-mix(in_srgb,#8fb8aa_40%,#26251e_60%)]"><?= esc((string) $totalFreeAccount) ?></div>
     </article>
 
     <article class="relative overflow-hidden rounded-lg border border-[color-mix(in_srgb,#1f8a65_30%,rgba(38,37,30,0.1)_70%)] bg-[color-mix(in_srgb,#9fc9a2_18%,#ebeae5_82%)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[color-mix(in_srgb,#1f8a65_65%,#26251e_35%)]">
@@ -230,6 +299,11 @@ $sectionTitle = 'mb-2 space-y-2';
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
                 <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#c0a8dd_42%,transparent_58%)] text-[#5f4a83] bg-[color-mix(in_srgb,#c0a8dd_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Weekly Kritis <= 20%</span>
                 <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritisWeekly) ?></strong> subscription.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#8fb8aa_42%,transparent_58%)] text-[#3f6357] bg-[color-mix(in_srgb,#8fb8aa_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Free Weekly <= 20%</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritisWeeklyFree) ?></strong> free account.</span>
             </div>
         </div>
     </article>

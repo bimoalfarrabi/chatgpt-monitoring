@@ -45,6 +45,9 @@ class WebController extends BaseController
         $subscriptions = $this->enrichedSubscriptions(
             $this->subscriptions->where('account_type', 'pro')->orderBy('expired_at', 'ASC')->findAll()
         );
+        $freeSubscriptions = $this->enrichedSubscriptions(
+            $this->subscriptions->where('account_type', 'free')->orderBy('updated_at', 'DESC')->findAll()
+        );
 
         $summary = [
             'total_accounts' => count($accounts),
@@ -61,10 +64,11 @@ class WebController extends BaseController
         }
 
         return view('dashboard', [
-            'summary'       => $summary,
-            'subscriptions' => $subscriptions,
-            'accountMap'    => $accountMap,
-            'pageTitle'     => 'Dashboard',
+            'summary'           => $summary,
+            'subscriptions'     => $subscriptions,
+            'freeSubscriptions' => $freeSubscriptions,
+            'accountMap'        => $accountMap,
+            'pageTitle'         => 'Dashboard',
         ]);
     }
 
