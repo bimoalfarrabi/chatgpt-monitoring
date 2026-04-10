@@ -9,14 +9,16 @@ $usageKritisWeekly = 0;
 
 $urutExpired = $subscriptions;
 usort($urutExpired, static function (array $a, array $b): int {
-    $aTime = strtotime((string) $a['expired_at']);
-    $bTime = strtotime((string) $b['expired_at']);
+    $aExpired = (string) ($a['expired_at'] ?? '');
+    $bExpired = (string) ($b['expired_at'] ?? '');
+    $aTime = $aExpired === '' ? PHP_INT_MAX : (strtotime($aExpired) ?: PHP_INT_MAX);
+    $bTime = $bExpired === '' ? PHP_INT_MAX : (strtotime($bExpired) ?: PHP_INT_MAX);
     return $aTime <=> $bTime;
 });
 $terdekatExpired = array_slice($urutExpired, 0, 5);
 
 foreach ($subscriptions as $subscription) {
-    if (in_array($subscription['status'], ['expiring_soon', 'expired'], true)) {
+    if (in_array($subscription['status'], ['expiring_soon', 'expired', 'deactivated'], true)) {
         $butuhTindakan++;
     }
 
@@ -36,6 +38,7 @@ $statusClasses = [
     'active' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#1f8a65_35%,transparent_65%)] text-[#165a44] bg-[color-mix(in_srgb,#1f8a65_18%,#f2f1ed_82%)]',
     'expiring_soon' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#c08532_40%,transparent_60%)] text-[#8f4d10] bg-[color-mix(in_srgb,#c08532_22%,#f2f1ed_78%)]',
     'expired' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#cf2d56_40%,transparent_60%)] text-[#8f1f3c] bg-[color-mix(in_srgb,#cf2d56_18%,#f2f1ed_82%)]',
+    'deactivated' => 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-display text-[14px] leading-[1.5] border border-[color-mix(in_srgb,#444444_34%,transparent_66%)] text-[#2d2d2d] bg-[color-mix(in_srgb,#444444_14%,#f2f1ed_86%)]',
 ];
 
 $cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
@@ -45,13 +48,13 @@ $sectionTitle = 'mb-2 space-y-2';
 
 <section class="<?= $sectionTitle ?>">
     <h1>Dasbor Monitoring Subscription</h1>
-    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Pantau kesehatan akun, status akses invite, dan sisa kuota pemakaian dalam satu tampilan. Label <strong>Expired</strong> pada sistem ini berarti <strong>Invite Expired</strong> (akses subscription habis), bukan akun utama nonaktif.</p>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Pantau kesehatan akun, status akses workspace, dan sisa kuota pemakaian dalam satu tampilan. Tanggal berakhir dihitung otomatis dari tanggal langganan + durasi satu bulan (jika dipilih).</p>
     <p class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]">Endpoint cepat: /api/accounts · /api/subscriptions · /api/account-usages/{id}/update · /api/telegram/test</p>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Subscription Terdekat Expired</h2>
-    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">5 data teratas berdasarkan tanggal Invite Expired paling dekat.</p>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">5 data teratas berdasarkan tanggal berakhir otomatis paling dekat.</p>
     <div class="<?= $tableWrap ?>">
         <table>
             <thead>
@@ -59,7 +62,7 @@ $sectionTitle = 'mb-2 space-y-2';
                 <th>Nama Akun</th>
                 <th>Email</th>
                 <th>Tipe Subscription</th>
-                <th>Invite Expired</th>
+                <th>Berakhir (Otomatis)</th>
                 <th>Status</th>
                 <th>Aksi</th>
             </tr>
@@ -76,7 +79,7 @@ $sectionTitle = 'mb-2 space-y-2';
                     <td><?= esc($account['account_name'] ?? '-') ?></td>
                     <td><?= esc($account['email'] ?? '-') ?></td>
                     <td><?= esc($subscription['subscription_type']) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at']) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at'] ?? '-') ?></td>
                     <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize($subscription['status'])) ?></span></td>
                     <td>
                         <?php if ($account): ?>
@@ -101,7 +104,7 @@ $sectionTitle = 'mb-2 space-y-2';
                 <th>Email</th>
                 <th>Sumber Store</th>
                 <th>Tipe Subscription</th>
-                <th>Invite Expired</th>
+                <th>Berakhir (Otomatis)</th>
                 <th>Status</th>
                 <th>Usage 5 Jam</th>
                 <th>Usage Mingguan</th>
@@ -123,18 +126,23 @@ $sectionTitle = 'mb-2 space-y-2';
                     <td><?= esc($account['email'] ?? '-') ?></td>
                     <td><?= esc($subscription['store_source']) ?></td>
                     <td><?= esc($subscription['subscription_type']) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at']) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at'] ?? '-') ?></td>
                     <td>
                         <span class="<?= $statusClass ?>">
                             <?= esc(\App\Services\SubscriptionStatusService::humanize($subscription['status'])) ?>
                         </span>
                     </td>
                     <td>
-                        <?php $usage5h = $subscription['usages']['5h'] ?? null; ?>
-                        <?php $p5 = (int) ($usage5h['remaining_percent'] ?? 0); ?>
-                        <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
-                        <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
+                        <?php $isPro = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free')) === 'pro'; ?>
+                        <?php if (! $isPro): ?>
+                            <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
+                        <?php else: ?>
+                            <?php $usage5h = $subscription['usages']['5h'] ?? null; ?>
+                            <?php $p5 = (int) ($usage5h['remaining_percent'] ?? 0); ?>
+                            <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
+                            <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
+                        <?php endif; ?>
                     </td>
                     <td>
                         <?php $usageW = $subscription['usages']['weekly'] ?? null; ?>
@@ -190,6 +198,11 @@ $sectionTitle = 'mb-2 space-y-2';
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
                 <span class="<?= $statusClasses['expired'] ?>">Expired</span>
                 <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $summary['expired']) ?></strong> subscription sudah melewati masa invite.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
+                <span class="<?= $statusClasses['deactivated'] ?>">Deactivated</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $summary['deactivated']) ?></strong> workspace dinonaktifkan.</span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">

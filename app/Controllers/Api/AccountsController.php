@@ -29,11 +29,7 @@ class AccountsController extends BaseApiController
                 ->findAll();
 
             foreach ($account['subscriptions'] as &$subscription) {
-                $status = SubscriptionStatusService::resolveStatus($subscription['expired_at']);
-                if ($subscription['status'] !== $status) {
-                    $this->subscriptions->update($subscription['id'], ['status' => $status]);
-                    $subscription['status'] = $status;
-                }
+                $subscription = $this->normalizeSubscription($subscription);
             }
         }
 
@@ -53,11 +49,7 @@ class AccountsController extends BaseApiController
             ->findAll();
 
         foreach ($account['subscriptions'] as &$subscription) {
-            $status = SubscriptionStatusService::resolveStatus($subscription['expired_at']);
-            if ($subscription['status'] !== $status) {
-                $this->subscriptions->update($subscription['id'], ['status' => $status]);
-                $subscription['status'] = $status;
-            }
+            $subscription = $this->normalizeSubscription($subscription);
         }
 
         return $this->ok($account);
@@ -137,5 +129,48 @@ class AccountsController extends BaseApiController
         $this->accounts->delete($id);
 
         return $this->ok(['deleted' => true]);
+    }
+
+    /**
+     * @param array<string, mixed> $subscription
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeSubscription(array $subscription): array
+    {
+        $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+        $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
+        $subscribedAt = $subscription['subscribed_at'] ?? null;
+
+        if ($accountType !== 'pro') {
+            $subscribedAt = null;
+            $isOneMonthDuration = false;
+            $isWorkspaceDeactivated = false;
+        }
+
+        $expiredAt = $accountType === 'pro'
+            ? SubscriptionStatusService::calculateExpiredAt($subscribedAt, $isOneMonthDuration)
+            : null;
+
+        $status = SubscriptionStatusService::resolveStatus($expiredAt, $isWorkspaceDeactivated);
+
+        $updateData = [];
+        if (($subscription['expired_at'] ?? null) !== $expiredAt) {
+            $updateData['expired_at'] = $expiredAt;
+        }
+        if (($subscription['status'] ?? null) !== $status) {
+            $updateData['status'] = $status;
+        }
+
+        if ($updateData !== []) {
+            $this->subscriptions->update((int) $subscription['id'], $updateData);
+        }
+
+        $subscription['expired_at'] = $expiredAt;
+        $subscription['status'] = $status;
+        $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
+
+        return $subscription;
     }
 }

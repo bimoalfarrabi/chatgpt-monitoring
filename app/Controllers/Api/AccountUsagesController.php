@@ -35,6 +35,10 @@ class AccountUsagesController extends BaseApiController
             return $this->validationErrorResponse($this->validator->getErrors());
         }
 
+        if (date('Y-m-d', strtotime($data['reset_at'])) < date('Y-m-d')) {
+            return $this->failMessage('Waktu reset tidak boleh lebih tua dari tanggal hari ini.', 422);
+        }
+
         $this->histories->insert([
             'account_usage_id' => $id,
             'old_percent'      => (int) $usage['remaining_percent'],

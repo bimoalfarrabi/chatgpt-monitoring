@@ -46,6 +46,7 @@ class WebController extends BaseController
             'active'         => 0,
             'expiring_soon'  => 0,
             'expired'        => 0,
+            'deactivated'    => 0,
         ];
 
         foreach ($subscriptions as $subscription) {
@@ -113,13 +114,23 @@ class WebController extends BaseController
             'email'             => 'required|valid_email|is_unique[accounts.email]',
             'password_hint'     => 'permit_empty|max_length[255]',
             'notes'             => 'permit_empty',
+            'account_type'      => 'required|in_list[free,pro]',
+            'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
+            'workspace_name'    => 'permit_empty|max_length[120]',
+            'is_workspace_deactivated' => 'permit_empty',
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
-            'expired_at'        => 'required|valid_date[Y-m-d\\TH:i]',
+            'subscribed_at'     => 'permit_empty|valid_date[Y-m-d\\TH:i]',
+            'is_one_month_duration' => 'permit_empty',
         ];
 
         if (! $this->validateData($data, $rules)) {
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $subscriptionData = $this->buildSubscriptionPayload($data);
+        if ($subscriptionData['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
         }
 
         $accountId = $this->accounts->insert([
@@ -129,30 +140,17 @@ class WebController extends BaseController
             'notes'         => $data['notes'] ?? null,
         ], true);
 
-        $expiredAt = date('Y-m-d H:i:s', strtotime($data['expired_at']));
-        $status = SubscriptionStatusService::resolveStatus($expiredAt);
-
-        $subscriptionId = $this->subscriptions->insert([
+        $subscriptionId = $this->subscriptions->insert(array_merge([
             'account_id'        => $accountId,
             'store_source'      => $data['store_source'],
             'subscription_type' => $data['subscription_type'],
-            'expired_at'        => $expiredAt,
-            'status'            => $status,
-        ], true);
+        ], $subscriptionData['payload']), true);
 
-        $this->usages->insert([
-            'subscription_id'   => $subscriptionId,
-            'usage_type'        => '5h',
-            'remaining_percent' => 100,
-            'reset_at'          => $expiredAt,
-        ]);
-
-        $this->usages->insert([
-            'subscription_id'   => $subscriptionId,
-            'usage_type'        => 'weekly',
-            'remaining_percent' => 100,
-            'reset_at'          => $expiredAt,
-        ]);
+        $this->syncUsagesForSubscription(
+            $subscriptionId,
+            $subscriptionData['account_type'],
+            $subscriptionData['default_reset_at']
+        );
 
         return redirect()->to('/accounts/' . $accountId)->with('success', 'Account & subscription berhasil dibuat.');
     }
@@ -167,24 +165,35 @@ class WebController extends BaseController
         $data = $this->request->getPost();
 
         $rules = [
+            'account_type'      => 'required|in_list[free,pro]',
+            'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
+            'workspace_name'    => 'permit_empty|max_length[120]',
+            'is_workspace_deactivated' => 'permit_empty',
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
-            'expired_at'        => 'required|valid_date[Y-m-d\\TH:i]',
+            'subscribed_at'     => 'permit_empty|valid_date[Y-m-d\\TH:i]',
+            'is_one_month_duration' => 'permit_empty',
         ];
 
         if (! $this->validateData($data, $rules)) {
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $expiredAt = date('Y-m-d H:i:s', strtotime($data['expired_at']));
-        $status = SubscriptionStatusService::resolveStatus($expiredAt);
+        $subscriptionData = $this->buildSubscriptionPayload($data);
+        if ($subscriptionData['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
+        }
 
-        $this->subscriptions->update($id, [
+        $this->subscriptions->update($id, array_merge([
             'store_source'      => $data['store_source'],
             'subscription_type' => $data['subscription_type'],
-            'expired_at'        => $expiredAt,
-            'status'            => $status,
-        ]);
+        ], $subscriptionData['payload']));
+
+        $this->syncUsagesForSubscription(
+            $id,
+            $subscriptionData['account_type'],
+            $subscriptionData['default_reset_at']
+        );
 
         return redirect()->back()->with('success', 'Subscription berhasil diupdate.');
     }
@@ -220,6 +229,9 @@ class WebController extends BaseController
 
         $newPercent = (int) $data['remaining_percent'];
         $resetAt = date('Y-m-d H:i:s', strtotime($data['reset_at']));
+        if ($this->isPastDate($resetAt)) {
+            return redirect()->back()->withInput()->with('error', 'Waktu reset tidak boleh lebih tua dari tanggal hari ini.');
+        }
 
         $this->histories->insert([
             'account_usage_id' => $usage['id'],
@@ -401,12 +413,61 @@ class WebController extends BaseController
         }
 
         foreach ($subscriptions as &$subscription) {
-            $status = SubscriptionStatusService::resolveStatus($subscription['expired_at']);
-            if ($subscription['status'] !== $status) {
-                $this->subscriptions->update($subscription['id'], ['status' => $status]);
-                $subscription['status'] = $status;
+            $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+            $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
+            $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
+            $proAccountType = SubscriptionStatusService::normalizeProAccountType($subscription['pro_account_type'] ?? null);
+            $workspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
+            $workspaceName = $workspaceName === '' ? null : $workspaceName;
+
+            if ($accountType !== 'pro') {
+                $proAccountType = null;
+                $workspaceName = null;
+                $subscription['subscribed_at'] = null;
+                $isOneMonthDuration = false;
             }
 
+            $expiredAt = $accountType === 'pro'
+                ? SubscriptionStatusService::calculateExpiredAt($subscription['subscribed_at'] ?? null, $isOneMonthDuration)
+                : null;
+
+            $status = SubscriptionStatusService::resolveStatus($expiredAt, $isWorkspaceDeactivated);
+
+            $updateData = [];
+            if (($subscription['status'] ?? null) !== $status) {
+                $updateData['status'] = $status;
+            }
+            if (($subscription['expired_at'] ?? null) !== $expiredAt) {
+                $updateData['expired_at'] = $expiredAt;
+            }
+            if (($subscription['account_type'] ?? null) !== $accountType) {
+                $updateData['account_type'] = $accountType;
+            }
+            if (($subscription['pro_account_type'] ?? null) !== $proAccountType) {
+                $updateData['pro_account_type'] = $proAccountType;
+            }
+            if (($subscription['workspace_name'] ?? null) !== $workspaceName) {
+                $updateData['workspace_name'] = $workspaceName;
+            }
+            if ((int) ($subscription['is_workspace_deactivated'] ?? 0) !== ($isWorkspaceDeactivated ? 1 : 0)) {
+                $updateData['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
+            }
+            if ((int) ($subscription['is_one_month_duration'] ?? 0) !== ($isOneMonthDuration ? 1 : 0)) {
+                $updateData['is_one_month_duration'] = $isOneMonthDuration ? 1 : 0;
+            }
+
+            if ($updateData !== []) {
+                $this->subscriptions->update($subscription['id'], $updateData);
+            }
+
+            $subscription['account_type'] = $accountType;
+            $subscription['pro_account_type'] = $proAccountType;
+            $subscription['workspace_name'] = $workspaceName;
+            $subscription['is_workspace_deactivated'] = $isWorkspaceDeactivated ? 1 : 0;
+            $subscription['is_one_month_duration'] = $isOneMonthDuration ? 1 : 0;
+            $subscription['expired_at'] = $expiredAt;
+            $subscription['status'] = $status;
+            $subscription['usage_types'] = SubscriptionStatusService::usageTypes($accountType);
             $subscription['usages'] = [
                 '5h'     => $usageMap[$subscription['id']]['5h'] ?? null,
                 'weekly' => $usageMap[$subscription['id']]['weekly'] ?? null,
@@ -414,6 +475,133 @@ class WebController extends BaseController
         }
 
         return $subscriptions;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array{
+     *     payload: array<string, mixed>,
+     *     account_type: string,
+     *     default_reset_at: string,
+     *     error: string|null
+     * }
+     */
+    private function buildSubscriptionPayload(array $data): array
+    {
+        $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
+        $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
+        $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
+        $workspaceName = $workspaceName === '' ? null : $workspaceName;
+
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($data['is_workspace_deactivated'] ?? null, false);
+        $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
+        $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
+
+        if ($accountType === 'pro') {
+            if ($proAccountType === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Jenis akun pro wajib dipilih (invite pribadi atau akun seller).',
+                ];
+            }
+
+            if ($workspaceName === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Nama workspace wajib diisi untuk akun pro.',
+                ];
+            }
+
+            if ($subscribedAt === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
+                ];
+            }
+        } else {
+            $proAccountType = null;
+            $workspaceName = null;
+            $isWorkspaceDeactivated = false;
+            $subscribedAt = null;
+            $isOneMonthDuration = false;
+        }
+
+        $expiredAt = $accountType === 'pro'
+            ? SubscriptionStatusService::calculateExpiredAt($subscribedAt, $isOneMonthDuration)
+            : null;
+
+        $status = SubscriptionStatusService::resolveStatus($expiredAt, $isWorkspaceDeactivated);
+
+        return [
+            'payload' => [
+                'account_type' => $accountType,
+                'pro_account_type' => $proAccountType,
+                'workspace_name' => $workspaceName,
+                'is_workspace_deactivated' => $isWorkspaceDeactivated ? 1 : 0,
+                'subscribed_at' => $subscribedAt,
+                'is_one_month_duration' => $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null,
+                'expired_at' => $expiredAt,
+                'status' => $status,
+            ],
+            'account_type' => $accountType,
+            'default_reset_at' => $subscribedAt ?? date('Y-m-d H:i:s'),
+            'error' => null,
+        ];
+    }
+
+    private function normalizeDateTimeInput(mixed $value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($raw);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function syncUsagesForSubscription(int $subscriptionId, string $accountType, string $defaultResetAt): void
+    {
+        $requiredTypes = SubscriptionStatusService::usageTypes($accountType);
+        $existingRows = $this->usages->where('subscription_id', $subscriptionId)->findAll();
+        $existingByType = [];
+
+        foreach ($existingRows as $row) {
+            $existingByType[$row['usage_type']] = $row;
+        }
+
+        foreach ($requiredTypes as $usageType) {
+            if (! isset($existingByType[$usageType])) {
+                $this->usages->insert([
+                    'subscription_id' => $subscriptionId,
+                    'usage_type' => $usageType,
+                    'remaining_percent' => 100,
+                    'reset_at' => $defaultResetAt,
+                ]);
+            }
+        }
+
+        foreach ($existingRows as $row) {
+            if (! in_array($row['usage_type'], $requiredTypes, true)) {
+                $this->usages->delete($row['id']);
+            }
+        }
+    }
+
+    private function isPastDate(string $dateTime): bool
+    {
+        return date('Y-m-d', strtotime($dateTime)) < date('Y-m-d');
     }
 
     private function currentUserId(): int

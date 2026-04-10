@@ -29,8 +29,11 @@ class SendSubscriptionReminders extends BaseCommand
         $todayEnd = date('Y-m-d 23:59:59');
 
         foreach ($subscriptions as $subscription) {
-            $status = SubscriptionStatusService::resolveStatus($subscription['expired_at']);
-            if (! in_array($status, ['expiring_soon', 'expired'], true)) {
+            $status = SubscriptionStatusService::resolveStatus(
+                $subscription['expired_at'] ?? null,
+                ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1
+            );
+            if (! in_array($status, ['expiring_soon', 'expired', 'deactivated'], true)) {
                 continue;
             }
 
@@ -47,12 +50,12 @@ class SendSubscriptionReminders extends BaseCommand
             }
 
             $text = sprintf(
-                "[Subscription Reminder]\nAccount: %s\nEmail: %s\nPlan: %s\nStatus: %s\nInvite Expired: %s",
+                "[Subscription Reminder]\nAccount: %s\nEmail: %s\nPlan: %s\nStatus: %s\nBerakhir (otomatis): %s",
                 $subscription['account_name'],
                 $subscription['email'],
                 $subscription['subscription_type'],
                 SubscriptionStatusService::humanize($status),
-                $subscription['expired_at']
+                $subscription['expired_at'] ?? '-'
             );
 
             $send = $telegram->sendMessage($text);
