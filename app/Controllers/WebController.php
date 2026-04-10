@@ -6,6 +6,7 @@ use App\Models\AccountModel;
 use App\Models\AccountUsageHistoryModel;
 use App\Models\AccountUsageModel;
 use App\Models\SubscriptionModel;
+use App\Models\SubscriptionRenewalHistoryModel;
 use App\Models\TelegramSettingModel;
 use App\Models\UserModel;
 use App\Services\SubscriptionStatusService;
@@ -16,6 +17,7 @@ class WebController extends BaseController
 {
     private AccountModel $accounts;
     private SubscriptionModel $subscriptions;
+    private SubscriptionRenewalHistoryModel $renewalHistories;
     private AccountUsageModel $usages;
     private AccountUsageHistoryModel $histories;
     private TelegramSettingModel $telegramSettings;
@@ -25,6 +27,7 @@ class WebController extends BaseController
     {
         $this->accounts = new AccountModel();
         $this->subscriptions = new SubscriptionModel();
+        $this->renewalHistories = new SubscriptionRenewalHistoryModel();
         $this->usages = new AccountUsageModel();
         $this->histories = new AccountUsageHistoryModel();
         $this->telegramSettings = new TelegramSettingModel();
@@ -97,10 +100,18 @@ class WebController extends BaseController
             ->orderBy('account_usage_histories.created_at', 'DESC')
             ->findAll();
 
+        $renewalHistory = $this->renewalHistories
+            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.subscription_type')
+            ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
+            ->where('subscriptions.account_id', $id)
+            ->orderBy('subscription_renewal_histories.renewed_at', 'DESC')
+            ->findAll();
+
         return view('accounts/detail', [
             'account'       => $account,
             'subscriptions' => $subscriptions,
             'workspaceHistory' => $this->workspaceHistory($subscriptions),
+            'renewalHistory' => $renewalHistory,
             'history'       => $history,
             'pageTitle'     => 'Account Detail',
         ]);
@@ -197,6 +208,54 @@ class WebController extends BaseController
         );
 
         return redirect()->back()->with('success', 'Subscription berhasil diupdate.');
+    }
+
+    public function renewSubscription(int $id): RedirectResponse
+    {
+        $subscription = $this->subscriptions->find($id);
+        if (! $subscription) {
+            return redirect()->back()->with('error', 'Subscription tidak ditemukan.');
+        }
+
+        $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
+        if ($accountType !== 'pro') {
+            return redirect()->back()->with('error', 'Auto perpanjang hanya berlaku untuk akun pro.');
+        }
+
+        if ($isWorkspaceDeactivated) {
+            return redirect()->back()->with('error', 'Workspace ini deactivated. Buat workspace baru, bukan perpanjang subscription lama.');
+        }
+
+        $nowTs = time();
+        $oldExpiredAt = $subscription['expired_at'] ?? null;
+        $oldExpiredTs = $oldExpiredAt ? strtotime((string) $oldExpiredAt) : false;
+
+        $baseTs = ($oldExpiredTs !== false && $oldExpiredTs > $nowTs) ? $oldExpiredTs : $nowTs;
+        $newExpiredTs = strtotime('+1 month', $baseTs);
+        if ($newExpiredTs === false) {
+            return redirect()->back()->with('error', 'Gagal menghitung tanggal perpanjangan subscription.');
+        }
+
+        $newExpiredAt = date('Y-m-d H:i:s', $newExpiredTs);
+        $newSubscribedAt = date('Y-m-d H:i:s', strtotime('-1 month', $newExpiredTs));
+        $newStatus = SubscriptionStatusService::resolveStatus($newExpiredAt, false);
+
+        $this->subscriptions->update($id, [
+            'subscribed_at' => $newSubscribedAt,
+            'is_one_month_duration' => 1,
+            'expired_at' => $newExpiredAt,
+            'status' => $newStatus,
+        ]);
+
+        $this->renewalHistories->insert([
+            'subscription_id' => $id,
+            'old_expired_at' => $oldExpiredAt,
+            'new_expired_at' => $newExpiredAt,
+            'renewed_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return redirect()->back()->with('success', 'Subscription berhasil diperpanjang otomatis +1 bulan.');
     }
 
     public function createWorkspaceFromDeactivated(int $id): RedirectResponse

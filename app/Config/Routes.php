@@ -19,6 +19,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->get('accounts/(:num)', 'WebController::accountDetail/$1');
     $routes->post('accounts/(:num)/delete', 'WebController::deleteAccount/$1');
     $routes->post('subscriptions/(:num)/update', 'WebController::updateSubscription/$1');
+    $routes->post('subscriptions/(:num)/renew', 'WebController::renewSubscription/$1');
     $routes->post('subscriptions/(:num)/workspace/create', 'WebController::createWorkspaceFromDeactivated/$1');
     $routes->post('usages/(:num)/update', 'WebController::updateUsage/$1');
     $routes->get('profile', 'WebController::profile');

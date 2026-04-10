@@ -141,6 +141,12 @@ $todayMin = date('Y-m-d\\T00:00');
             <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
         </form>
 
+        <?php if ($isPro && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
+            <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
+                <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
+            </form>
+        <?php endif; ?>
+
         <?php if ($isPro && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
             <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
                 <h4 class="text-[20px]">Buat Workspace Baru</h4>
@@ -284,6 +290,40 @@ $todayMin = date('Y-m-d\\T00:00');
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['subscribed_at'] ?? '-')) ?></td>
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['expired_at'] ?? '-')) ?></td>
                     <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['created_at'] ?? '-')) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Riwayat Perpanjangan Subscription</h2>
+    <div class="<?= $tableWrap ?>">
+        <table>
+            <thead>
+            <tr>
+                <th>Workspace</th>
+                <th>Tipe Subscription</th>
+                <th>Expired Lama</th>
+                <th>Expired Baru</th>
+                <th>Diperpanjang Pada</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if (($renewalHistory ?? []) === []): ?>
+                <tr>
+                    <td colspan="5" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada riwayat perpanjangan subscription.</td>
+                </tr>
+            <?php endif; ?>
+
+            <?php foreach (($renewalHistory ?? []) as $row): ?>
+                <tr>
+                    <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
+                    <td><?= esc((string) ($row['subscription_type'] ?? '-')) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['old_expired_at'] ?? '-')) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['new_expired_at'] ?? '-')) ?></td>
+                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['renewed_at'] ?? '-')) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
