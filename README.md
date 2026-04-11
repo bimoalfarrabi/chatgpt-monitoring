@@ -8,6 +8,7 @@ Dokumen referensi yang diimplementasikan:
 - `docs/DATABASE_subscription.md`
 - `docs/UI_WIREFRAME.md`
 - `docs/IMPLEMENTATION_PLAN_subscription.md`
+- `docs/TELEGRAM_SETUP.md`
 
 ## Stack
 - PHP 8.2+ (lokal: `/opt/lampp/bin/php`)
