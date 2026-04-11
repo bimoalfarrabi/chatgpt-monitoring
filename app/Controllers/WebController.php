@@ -588,10 +588,7 @@ class WebController extends BaseController
         $usageMap = [];
 
         foreach ($usageRows as $usage) {
-            if ((int) ($usage['remaining_percent'] ?? 0) >= 100 && ($usage['reset_at'] ?? null) !== null) {
-                $this->usages->update($usage['id'], ['reset_at' => null]);
-                $usage['reset_at'] = null;
-            }
+            $usage = $this->normalizeUsageRow($usage);
 
             $usageMap[$usage['subscription_id']][$usage['usage_type']] = $usage;
         }
@@ -820,6 +817,39 @@ class WebController extends BaseController
     private function isPastDate(string $dateTime): bool
     {
         return date('Y-m-d', strtotime($dateTime)) < date('Y-m-d');
+    }
+
+    /**
+     * @param array<string, mixed> $usage
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeUsageRow(array $usage): array
+    {
+        $remainingPercent = (int) ($usage['remaining_percent'] ?? 0);
+        $resetAt = $usage['reset_at'] ?? null;
+
+        if ($resetAt !== null) {
+            $resetTimestamp = strtotime((string) $resetAt);
+
+            if ($resetTimestamp !== false && $resetTimestamp <= time()) {
+                $this->usages->update((int) $usage['id'], [
+                    'remaining_percent' => 100,
+                    'reset_at' => null,
+                ]);
+                $usage['remaining_percent'] = 100;
+                $usage['reset_at'] = null;
+
+                return $usage;
+            }
+
+            if ($remainingPercent >= 100) {
+                $this->usages->update((int) $usage['id'], ['reset_at' => null]);
+                $usage['reset_at'] = null;
+            }
+        }
+
+        return $usage;
     }
 
     /**
