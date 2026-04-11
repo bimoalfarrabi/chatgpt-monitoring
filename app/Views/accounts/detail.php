@@ -10,7 +10,6 @@ $statusClasses = [
 ];
 
 $cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
-$tableWrap = 'overflow-visible';
 
 $inputClass = 'mt-1 w-full rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color,color] duration-150 focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px] disabled:cursor-not-allowed disabled:border-[rgba(38,37,30,0.12)] disabled:bg-[rgba(38,37,30,0.06)] disabled:text-[rgba(38,37,30,0.45)]';
 $readonlyInputClass = 'mt-1 w-full rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.62)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] cursor-default';
@@ -303,129 +302,86 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Histori Workspace</h2>
-    <div class="<?= $tableWrap ?>">
-        <table class="data-table-cards">
-            <thead>
-            <tr>
-                <th>Workspace Seller (Pro)</th>
-                <th>Workspace Personal (Free)</th>
-                <th>Jenis Akun Pro</th>
-                <th>Status Workspace</th>
-                <th>Status Lifecycle</th>
-                <th>Tanggal Langganan</th>
-                <th>Berakhir (Otomatis)</th>
-                <th>Dibuat Pada</th>
-            </tr>
-            </thead>
-            <tbody>
-            <?php if (($workspaceHistory ?? []) === []): ?>
-                <tr>
-                    <td colspan="8" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada histori workspace.</td>
-                </tr>
-            <?php endif; ?>
-
-            <?php foreach (($workspaceHistory ?? []) as $row): ?>
-                <?php
-                $historyStatusClass = $statusClasses[$row['status']] ?? $statusClasses['active'];
-                $historyProType = (string) ($row['pro_account_type'] ?? '');
-                $historyProTypeLabel = $historyProType === 'personal_invite'
-                    ? 'Invite Akun Pribadi'
-                    : ($historyProType === 'seller_account' ? 'Akun dari Seller' : '-');
-                ?>
-                <tr>
-                    <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
-                    <td><?= esc($historyProType === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
-                    <td><?= esc($historyProTypeLabel) ?></td>
-                    <td><?= ((int) ($row['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?></td>
-                    <td><span class="<?= $historyStatusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($row['status'] ?? 'active'))) ?></span></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['subscribed_at'] ?? '-')) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['expired_at'] ?? '-')) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['created_at'] ?? '-')) ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div data-history-section="workspace" data-account-id="<?= esc((string) $account['id']) ?>">
+        <?= view('accounts/partials/history_workspace', [
+            'workspaceHistory' => $workspaceHistoryPage['rows'] ?? [],
+            'pagination' => $workspaceHistoryPage['pagination'] ?? [],
+        ]) ?>
     </div>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Riwayat Perpanjangan Subscription</h2>
-    <div class="<?= $tableWrap ?>">
-        <table class="data-table-cards">
-            <thead>
-            <tr>
-                <th>Workspace Seller (Pro)</th>
-                <th>Workspace Personal (Free)</th>
-                <th>Tipe Subscription</th>
-                <th>Expired Lama</th>
-                <th>Expired Baru</th>
-                <th>Diperpanjang Pada</th>
-            </tr>
-            </thead>
-            <tbody>
-            <?php if (($renewalHistory ?? []) === []): ?>
-                <tr>
-                    <td colspan="6" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada riwayat perpanjangan subscription.</td>
-                </tr>
-            <?php endif; ?>
-
-            <?php foreach (($renewalHistory ?? []) as $row): ?>
-                <tr>
-                    <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
-                    <td><?= esc(((string) ($row['pro_account_type'] ?? '')) === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
-                    <td><?= esc((string) ($row['subscription_type'] ?? '-')) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['old_expired_at'] ?? '-')) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['new_expired_at'] ?? '-')) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['renewed_at'] ?? '-')) ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div data-history-section="renewal" data-account-id="<?= esc((string) $account['id']) ?>">
+        <?= view('accounts/partials/history_renewal', [
+            'renewalHistory' => $renewalHistoryPage['rows'] ?? [],
+            'pagination' => $renewalHistoryPage['pagination'] ?? [],
+        ]) ?>
     </div>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Riwayat Perubahan Usage</h2>
-    <div class="<?= $tableWrap ?>">
-        <table class="data-table-cards">
-            <thead>
-            <tr>
-                <th>ID Subscription</th>
-                <th>Tipe Usage</th>
-                <th>Persen Lama</th>
-                <th>Persen Baru</th>
-                <th>Diperbarui Pada</th>
-            </tr>
-            </thead>
-            <tbody>
-            <?php if ($history === []): ?>
-                <tr>
-                    <td colspan="5" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada riwayat perubahan usage.</td>
-                </tr>
-            <?php endif; ?>
-
-            <?php foreach ($history as $row): ?>
-                <?php
-                $usageTypeLabel = match ((string) ($row['usage_type'] ?? '')) {
-                    'weekly_personal' => 'weekly (personal free)',
-                    default => (string) ($row['usage_type'] ?? '-'),
-                };
-                ?>
-                <tr>
-                    <td><?= esc((string) $row['subscription_id']) ?></td>
-                    <td><?= esc($usageTypeLabel) ?></td>
-                    <td><?= esc((string) ($row['old_percent'] ?? '-')) ?></td>
-                    <td><?= esc((string) $row['new_percent']) ?></td>
-                    <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($row['created_at']) ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div data-history-section="usage" data-account-id="<?= esc((string) $account['id']) ?>">
+        <?= view('accounts/partials/history_usage', [
+            'history' => $usageHistoryPage['rows'] ?? [],
+            'pagination' => $usageHistoryPage['pagination'] ?? [],
+        ]) ?>
     </div>
 </section>
 
 <script>
 (() => {
+    const historySections = Array.from(document.querySelectorAll('[data-history-section][data-account-id]'));
+    historySections.forEach((section) => {
+        section.addEventListener('click', async (event) => {
+            const pageButton = event.target.closest('[data-history-page]');
+            if (!pageButton || !section.contains(pageButton) || pageButton.disabled) {
+                return;
+            }
+
+            const accountId = section.getAttribute('data-account-id');
+            const historySection = section.getAttribute('data-history-section');
+            const targetPage = Number(pageButton.getAttribute('data-history-page') || 1);
+
+            if (!accountId || !historySection || !Number.isInteger(targetPage) || targetPage < 1) {
+                return;
+            }
+
+            if (section.getAttribute('data-history-loading') === '1') {
+                return;
+            }
+
+            section.setAttribute('data-history-loading', '1');
+            section.classList.add('opacity-70', 'pointer-events-none');
+
+            try {
+                const response = await fetch(`/accounts/${encodeURIComponent(accountId)}/history/${encodeURIComponent(historySection)}?page=${targetPage}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const payload = await response.json();
+                if (!payload?.success || typeof payload.html !== 'string') {
+                    throw new Error('Invalid history response.');
+                }
+
+                section.innerHTML = payload.html;
+            } catch (error) {
+                window.alert('Gagal memuat data riwayat. Silakan coba lagi.');
+            } finally {
+                section.removeAttribute('data-history-loading');
+                section.classList.remove('opacity-70', 'pointer-events-none');
+            }
+        });
+    });
+
     const selectors = Array.from(document.querySelectorAll('[data-subscription-type-select]'));
 
     const syncSubscriptionForm = (formId, currentValue) => {

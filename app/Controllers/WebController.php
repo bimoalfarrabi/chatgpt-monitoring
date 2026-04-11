@@ -15,6 +15,8 @@ use CodeIgniter\HTTP\RedirectResponse;
 
 class WebController extends BaseController
 {
+    private const HISTORY_PER_PAGE = 10;
+
     private AccountModel $accounts;
     private SubscriptionModel $subscriptions;
     private SubscriptionRenewalHistoryModel $renewalHistories;
@@ -104,29 +106,83 @@ class WebController extends BaseController
                 ->findAll()
         );
 
-        $history = $this->histories
-            ->select('account_usage_histories.*, account_usages.usage_type, account_usages.subscription_id')
-            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
-            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
-            ->where('subscriptions.account_id', $id)
-            ->orderBy('account_usage_histories.created_at', 'DESC')
-            ->findAll();
-
-        $renewalHistory = $this->renewalHistories
-            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type')
-            ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
-            ->where('subscriptions.account_id', $id)
-            ->where('subscriptions.account_type', 'pro')
-            ->orderBy('subscription_renewal_histories.renewed_at', 'DESC')
-            ->findAll();
+        $workspaceHistoryPage = $this->workspaceHistoryPage(
+            $subscriptions,
+            $this->normalizePage($this->request->getGet('workspace_page')),
+            self::HISTORY_PER_PAGE
+        );
+        $renewalHistoryPage = $this->renewalHistoryPage(
+            $id,
+            $this->normalizePage($this->request->getGet('renewal_page')),
+            self::HISTORY_PER_PAGE
+        );
+        $usageHistoryPage = $this->usageHistoryPage(
+            $id,
+            $this->normalizePage($this->request->getGet('usage_page')),
+            self::HISTORY_PER_PAGE
+        );
 
         return view('accounts/detail', [
-            'account'       => $account,
-            'subscriptions' => $subscriptions,
-            'workspaceHistory' => $this->workspaceHistory($subscriptions),
-            'renewalHistory' => $renewalHistory,
-            'history'       => $history,
-            'pageTitle'     => 'Account Detail',
+            'account'              => $account,
+            'subscriptions'        => $subscriptions,
+            'workspaceHistoryPage' => $workspaceHistoryPage,
+            'renewalHistoryPage'   => $renewalHistoryPage,
+            'usageHistoryPage'     => $usageHistoryPage,
+            'pageTitle'            => 'Account Detail',
+        ]);
+    }
+
+    public function accountHistory(int $id, string $section)
+    {
+        $account = $this->accounts->find($id);
+        if (! $account) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false,
+                'message' => 'Account tidak ditemukan.',
+            ]);
+        }
+
+        $page = $this->normalizePage($this->request->getGet('page'));
+        $section = strtolower(trim($section));
+
+        $view = null;
+        $viewData = [];
+        $pagination = [];
+
+        if ($section === 'workspace') {
+            $subscriptions = $this->enrichedSubscriptions(
+                $this->subscriptions
+                    ->where('account_id', $id)
+                    ->orderBy('expired_at', 'ASC')
+                    ->findAll()
+            );
+
+            $pageData = $this->workspaceHistoryPage($subscriptions, $page, self::HISTORY_PER_PAGE);
+            $view = 'accounts/partials/history_workspace';
+            $viewData = ['workspaceHistory' => $pageData['rows'], 'pagination' => $pageData['pagination']];
+            $pagination = $pageData['pagination'];
+        } elseif ($section === 'renewal') {
+            $pageData = $this->renewalHistoryPage($id, $page, self::HISTORY_PER_PAGE);
+            $view = 'accounts/partials/history_renewal';
+            $viewData = ['renewalHistory' => $pageData['rows'], 'pagination' => $pageData['pagination']];
+            $pagination = $pageData['pagination'];
+        } elseif ($section === 'usage') {
+            $pageData = $this->usageHistoryPage($id, $page, self::HISTORY_PER_PAGE);
+            $view = 'accounts/partials/history_usage';
+            $viewData = ['history' => $pageData['rows'], 'pagination' => $pageData['pagination']];
+            $pagination = $pageData['pagination'];
+        } else {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Section history tidak valid.',
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'section' => $section,
+            'pagination' => $pagination,
+            'html' => view($view, $viewData),
         ]);
     }
 
@@ -870,6 +926,123 @@ class WebController extends BaseController
         });
 
         return $rows;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $subscriptions
+     *
+     * @return array{
+     *     rows: array<int, array<string, mixed>>,
+     *     pagination: array<string, int|bool>
+     * }
+     */
+    private function workspaceHistoryPage(array $subscriptions, int $page, int $perPage): array
+    {
+        $rows = $this->workspaceHistory($subscriptions);
+        $pagination = $this->buildPaginationMeta(count($rows), $page, $perPage);
+        $slice = array_slice($rows, $pagination['offset'], $perPage);
+        unset($pagination['offset']);
+
+        return [
+            'rows' => $slice,
+            'pagination' => $pagination,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     rows: array<int, array<string, mixed>>,
+     *     pagination: array<string, int|bool>
+     * }
+     */
+    private function renewalHistoryPage(int $accountId, int $page, int $perPage): array
+    {
+        $builder = db_connect()
+            ->table('subscription_renewal_histories')
+            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type')
+            ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
+            ->where('subscriptions.account_id', $accountId)
+            ->where('subscriptions.account_type', 'pro');
+
+        $totalItems = (int) (clone $builder)->countAllResults();
+        $pagination = $this->buildPaginationMeta($totalItems, $page, $perPage);
+
+        $rows = $builder
+            ->orderBy('subscription_renewal_histories.renewed_at', 'DESC')
+            ->limit($perPage, $pagination['offset'])
+            ->get()
+            ->getResultArray();
+        unset($pagination['offset']);
+
+        return [
+            'rows' => $rows,
+            'pagination' => $pagination,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     rows: array<int, array<string, mixed>>,
+     *     pagination: array<string, int|bool>
+     * }
+     */
+    private function usageHistoryPage(int $accountId, int $page, int $perPage): array
+    {
+        $builder = db_connect()
+            ->table('account_usage_histories')
+            ->select('account_usage_histories.*, account_usages.usage_type, account_usages.subscription_id')
+            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
+            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
+            ->where('subscriptions.account_id', $accountId);
+
+        $totalItems = (int) (clone $builder)->countAllResults();
+        $pagination = $this->buildPaginationMeta($totalItems, $page, $perPage);
+
+        $rows = $builder
+            ->orderBy('account_usage_histories.created_at', 'DESC')
+            ->limit($perPage, $pagination['offset'])
+            ->get()
+            ->getResultArray();
+        unset($pagination['offset']);
+
+        return [
+            'rows' => $rows,
+            'pagination' => $pagination,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     current_page: int,
+     *     per_page: int,
+     *     total_items: int,
+     *     total_pages: int,
+     *     has_prev: bool,
+     *     has_next: bool,
+     *     offset: int
+     * }
+     */
+    private function buildPaginationMeta(int $totalItems, int $page, int $perPage): array
+    {
+        $totalPages = max(1, (int) ceil($totalItems / $perPage));
+        $currentPage = min(max($page, 1), $totalPages);
+
+        return [
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total_items' => $totalItems,
+            'total_pages' => $totalPages,
+            'has_prev' => $currentPage > 1,
+            'has_next' => $currentPage < $totalPages,
+            'offset' => ($currentPage - 1) * $perPage,
+        ];
+    }
+
+    private function normalizePage(mixed $value): int
+    {
+        $page = (int) $value;
+
+        return $page > 0 ? $page : 1;
     }
 
     private function currentUserId(): int
