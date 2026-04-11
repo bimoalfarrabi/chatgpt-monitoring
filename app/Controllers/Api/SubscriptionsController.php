@@ -3,6 +3,7 @@
 namespace App\Controllers\Api;
 
 use App\Models\AccountModel;
+use App\Models\AccountUsageHistoryModel;
 use App\Models\AccountUsageModel;
 use App\Models\SubscriptionModel;
 use App\Services\SubscriptionStatusService;
@@ -13,12 +14,14 @@ class SubscriptionsController extends BaseApiController
     private SubscriptionModel $subscriptions;
     private AccountModel $accounts;
     private AccountUsageModel $usages;
+    private AccountUsageHistoryModel $histories;
 
     public function __construct()
     {
         $this->subscriptions = new SubscriptionModel();
         $this->accounts = new AccountModel();
         $this->usages = new AccountUsageModel();
+        $this->histories = new AccountUsageHistoryModel();
     }
 
     public function index(): ResponseInterface
@@ -415,6 +418,16 @@ class SubscriptionsController extends BaseApiController
             $resetTimestamp = strtotime((string) $resetAt);
 
             if ($resetTimestamp !== false && $resetTimestamp <= time()) {
+                $usageId = (int) ($usage['id'] ?? 0);
+                if ($usageId > 0 && $remainingPercent !== 100) {
+                    $this->histories->insert([
+                        'account_usage_id' => $usageId,
+                        'old_percent' => $remainingPercent,
+                        'new_percent' => 100,
+                        'created_at' => date('Y-m-d H:i:s'),
+                    ]);
+                }
+
                 $this->usages->update((int) $usage['id'], [
                     'remaining_percent' => 100,
                     'reset_at' => null,

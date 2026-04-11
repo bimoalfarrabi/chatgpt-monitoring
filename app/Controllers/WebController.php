@@ -933,6 +933,16 @@ class WebController extends BaseController
             $resetTimestamp = strtotime((string) $resetAt);
 
             if ($resetTimestamp !== false && $resetTimestamp <= time()) {
+                $usageId = (int) ($usage['id'] ?? 0);
+                if ($usageId > 0 && $remainingPercent !== 100) {
+                    $this->histories->insert([
+                        'account_usage_id' => $usageId,
+                        'old_percent' => $remainingPercent,
+                        'new_percent' => 100,
+                        'created_at' => date('Y-m-d H:i:s'),
+                    ]);
+                }
+
                 $this->usages->update((int) $usage['id'], [
                     'remaining_percent' => 100,
                     'reset_at' => null,
