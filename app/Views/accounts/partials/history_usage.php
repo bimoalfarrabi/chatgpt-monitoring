@@ -3,7 +3,7 @@ $history = is_array($history ?? null) ? $history : [];
 $pagination = is_array($pagination ?? null) ? $pagination : [];
 
 $currentPage = max(1, (int) ($pagination['current_page'] ?? 1));
-$perPage = max(1, (int) ($pagination['per_page'] ?? 10));
+$perPage = max(1, (int) ($pagination['per_page'] ?? 5));
 $totalItems = max(0, (int) ($pagination['total_items'] ?? count($history)));
 $totalPages = max(1, (int) ($pagination['total_pages'] ?? 1));
 $hasPrev = (bool) ($pagination['has_prev'] ?? ($currentPage > 1));

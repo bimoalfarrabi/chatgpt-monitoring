@@ -15,7 +15,7 @@ use CodeIgniter\HTTP\RedirectResponse;
 
 class WebController extends BaseController
 {
-    private const HISTORY_PER_PAGE = 10;
+    private const HISTORY_PER_PAGE = 5;
 
     private AccountModel $accounts;
     private SubscriptionModel $subscriptions;
