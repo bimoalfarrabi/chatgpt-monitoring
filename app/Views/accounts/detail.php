@@ -20,6 +20,7 @@ $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md b
 $buttonDanger = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[color-mix(in_srgb,#cf2d56_40%,transparent_60%)] bg-[color-mix(in_srgb,#cf2d56_14%,#f2f1ed_86%)] px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[#8f1f3c] transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,#cf2d56_55%,transparent_45%)] hover:shadow-[rgba(0,0,0,0.1)_0_4px_12px]';
 $todayMin = date('Y-m-d\\T00:00');
 $accountPassword = (string) ($account['password_hint'] ?? '');
+$chartDateDefault = date('Y-m-d');
 ?>
 
 <section class="space-y-2">
@@ -65,6 +66,34 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
             <div class="mt-1 font-display text-[15px] leading-[1.5] text-[rgba(38,37,30,0.82)]"><?= esc($account['notes'] ?? '-') ?></div>
         </article>
     </div>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Grafik Penggunaan Akun Ini</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+        Visualisasi persentase usage 5h dan weekly untuk subscription pro, serta weekly only untuk subscription free.
+    </p>
+    <div class="flex flex-wrap items-end gap-2">
+        <label class="<?= $labelClass ?>">
+            Tanggal Data
+            <input
+                type="date"
+                value="<?= esc($chartDateDefault) ?>"
+                data-account-chart-date
+                class="<?= $inputClass ?> w-[220px]"
+            >
+        </label>
+        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-account-chart-caption>
+            Menampilkan data berdasarkan tanggal terpilih.
+        </p>
+    </div>
+    <div
+        id="account-usage-chart"
+        data-chart-endpoint="/accounts/<?= esc((string) $account['id']) ?>/usage-chart"
+        data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
+        data-usage-chart="[]"
+        class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3"
+    ></div>
 </section>
 
 <?php if ($subscriptions === []): ?>
@@ -332,6 +361,200 @@ $accountPassword = (string) ($account['password_hint'] ?? '');
 
 <script>
 (() => {
+    const accountChartRoot = document.getElementById('account-usage-chart');
+    const accountDateInput = document.querySelector('[data-account-chart-date]');
+    const accountCaption = document.querySelector('[data-account-chart-caption]');
+    const accountChartEndpoint = accountChartRoot?.getAttribute('data-chart-endpoint') || '';
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const toPercent = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            return null;
+        }
+
+        return Math.max(0, Math.min(100, numeric));
+    };
+
+    const renderUsageComparisonChart = (root, datasets) => {
+        if (!root) {
+            return;
+        }
+
+        const normalized = datasets
+            .map((item) => {
+                const weekly = toPercent(item?.usageWeekly);
+                if (weekly === null) {
+                    return null;
+                }
+
+                return {
+                    label: String(item?.label ?? 'Subscription'),
+                    color: String(item?.color ?? '#2f6db5'),
+                    accountType: String(item?.accountType ?? 'free'),
+                    usage5h: toPercent(item?.usage5h),
+                    usageWeekly: weekly,
+                };
+            })
+            .filter((item) => item !== null);
+
+        if (normalized.length === 0) {
+            root.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data usage untuk divisualisasikan.</p>';
+            return;
+        }
+
+        const width = 880;
+        const height = 330;
+        const margin = { top: 26, right: 24, bottom: 62, left: 42 };
+        const plotWidth = width - margin.left - margin.right;
+        const plotHeight = height - margin.top - margin.bottom;
+        const x5h = margin.left + plotWidth * 0.14;
+        const xWeekly = margin.left + plotWidth * 0.86;
+        const yFromPercent = (percent) => margin.top + ((100 - percent) / 100) * plotHeight;
+        const ticks = [0, 20, 40, 60, 80, 100];
+
+        const gridLines = ticks.map((tick) => {
+            const y = yFromPercent(tick);
+            return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(38,37,30,0.14)" stroke-width="1" />
+                <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${tick}%</text>`;
+        }).join('');
+
+        const seriesSvg = normalized.map((item) => {
+            const points = [];
+            if (item.usage5h !== null) {
+                points.push({ x: x5h, y: yFromPercent(item.usage5h), label: `5h: ${item.usage5h}%` });
+            }
+            points.push({ x: xWeekly, y: yFromPercent(item.usageWeekly), label: `weekly: ${item.usageWeekly}%` });
+
+            const line = item.usage5h !== null
+                ? `<line x1="${x5h}" y1="${yFromPercent(item.usage5h)}" x2="${xWeekly}" y2="${yFromPercent(item.usageWeekly)}" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" opacity="0.9">
+                    <title>${escapeHtml(item.label)} · 5h ${item.usage5h}% · weekly ${item.usageWeekly}%</title>
+                </line>`
+                : '';
+
+            const circles = points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${item.color}" stroke="white" stroke-width="1.5">
+                <title>${escapeHtml(item.label)} · ${point.label}</title>
+            </circle>`).join('');
+
+            return `${line}${circles}`;
+        }).join('');
+
+        const legendItems = normalized.map((item) => {
+            const label = `${item.label} · ${item.usage5h === null ? 'weekly' : '5h + weekly'}`;
+            const valueText = item.usage5h === null
+                ? `weekly ${item.usageWeekly}%`
+                : `5h ${item.usage5h}% · weekly ${item.usageWeekly}%`;
+
+            return `<li class="flex items-start gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-1.5">
+                <span class="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style="background:${escapeHtml(item.color)}"></span>
+                <span class="min-w-0">
+                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(label)}</span>
+                    <span class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(valueText)}</span>
+                </span>
+            </li>`;
+        }).join('');
+
+        root.innerHTML = `
+            <div class="space-y-3">
+                <div class="overflow-x-auto">
+                    <svg viewBox="0 0 ${width} ${height}" class="min-w-[680px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
+                        ${gridLines}
+                        <line x1="${x5h}" y1="${margin.top}" x2="${x5h}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
+                        <line x1="${xWeekly}" y1="${margin.top}" x2="${xWeekly}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
+                        ${seriesSvg}
+                        <text x="${x5h}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage 5h</text>
+                        <text x="${xWeekly}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage Weekly</text>
+                    </svg>
+                </div>
+                <ul class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">${legendItems}</ul>
+            </div>
+        `;
+    };
+
+    const applyAccountCaption = (dateText, itemCount) => {
+        if (!accountCaption) {
+            return;
+        }
+
+        accountCaption.textContent = `Tanggal data: ${dateText} · ${itemCount} seri`;
+    };
+
+    const setAccountChartLoading = (isLoading) => {
+        if (!accountChartRoot) {
+            return;
+        }
+
+        accountChartRoot.classList.toggle('opacity-70', isLoading);
+        accountChartRoot.classList.toggle('pointer-events-none', isLoading);
+    };
+
+    const loadAccountChartByDate = async (dateValue) => {
+        if (!accountChartRoot || !accountChartEndpoint || !dateValue) {
+            return;
+        }
+
+        setAccountChartLoading(true);
+        try {
+            const response = await fetch(`${accountChartEndpoint}?date=${encodeURIComponent(dateValue)}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const payload = await response.json();
+            if (!payload?.success || !Array.isArray(payload.data)) {
+                throw new Error('Invalid usage chart response.');
+            }
+
+            renderUsageComparisonChart(accountChartRoot, payload.data);
+            applyAccountCaption(payload.date || dateValue, payload.data.length);
+        } catch (error) {
+            accountChartRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data grafik pada tanggal tersebut.</p>';
+            applyAccountCaption(dateValue, 0);
+        } finally {
+            setAccountChartLoading(false);
+        }
+    };
+
+    if (accountChartRoot) {
+        let chartData = [];
+        const initialDate = accountDateInput?.value || accountChartRoot.getAttribute('data-initial-date') || '';
+        if (accountDateInput && initialDate !== '') {
+            accountDateInput.value = initialDate;
+        }
+
+        try {
+            chartData = JSON.parse(accountChartRoot.getAttribute('data-usage-chart') || '[]');
+        } catch (error) {
+            chartData = [];
+        }
+
+        if (accountChartEndpoint && initialDate !== '') {
+            loadAccountChartByDate(initialDate);
+        } else {
+            renderUsageComparisonChart(accountChartRoot, Array.isArray(chartData) ? chartData : []);
+            applyAccountCaption(initialDate !== '' ? initialDate : '-', Array.isArray(chartData) ? chartData.length : 0);
+        }
+    }
+
+    accountDateInput?.addEventListener('change', () => {
+        const selectedDate = accountDateInput.value;
+        if (selectedDate !== '') {
+            loadAccountChartByDate(selectedDate);
+        }
+    });
+
     const historySections = Array.from(document.querySelectorAll('[data-history-section][data-account-id]'));
     historySections.forEach((section) => {
         section.addEventListener('click', async (event) => {

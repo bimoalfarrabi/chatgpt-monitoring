@@ -66,12 +66,41 @@ $statusClasses = [
 $cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
 $tableWrap = 'overflow-visible';
 $sectionTitle = 'mb-2 space-y-2';
+$chartDateDefault = date('Y-m-d');
 ?>
 
 <section class="<?= $sectionTitle ?>">
     <h1>Dasbor Monitoring Subscription</h1>
     <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Pantau kesehatan akun, status akses workspace, dan sisa kuota pemakaian dalam satu tampilan. Tanggal berakhir dihitung otomatis dari tanggal langganan + durasi satu bulan (jika dipilih).</p>
     <p class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]">Endpoint cepat: /api/accounts · /api/subscriptions · /api/account-usages/{id}/update · /api/telegram/test</p>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Grafik Penggunaan Seluruh Akun</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+        Perbandingan persentase usage 5h dan weekly untuk akun pro, serta weekly only untuk akun free. Setiap akun dibedakan dengan warna.
+    </p>
+    <div class="flex flex-wrap items-end gap-2">
+        <label class="font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]">
+            Tanggal Data
+            <input
+                type="date"
+                value="<?= esc($chartDateDefault) ?>"
+                data-dashboard-chart-date
+                class="mt-1 w-[220px] rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color,color] duration-150 focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]"
+            >
+        </label>
+        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-dashboard-chart-caption>
+            Menampilkan data berdasarkan tanggal terpilih.
+        </p>
+    </div>
+    <div
+        id="dashboard-usage-chart"
+        data-chart-endpoint="/usage-chart/dashboard"
+        data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
+        data-usage-chart="[]"
+        class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3"
+    ></div>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
@@ -331,4 +360,195 @@ $sectionTitle = 'mb-2 space-y-2';
         </div>
     </article>
 </section>
+<script>
+(() => {
+    const chartRoot = document.getElementById('dashboard-usage-chart');
+    const dateInput = document.querySelector('[data-dashboard-chart-date]');
+    const caption = document.querySelector('[data-dashboard-chart-caption]');
+    if (!chartRoot) {
+        return;
+    }
+
+    const endpoint = chartRoot.getAttribute('data-chart-endpoint') || '';
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const toPercent = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            return null;
+        }
+
+        return Math.max(0, Math.min(100, numeric));
+    };
+
+    const renderUsageComparisonChart = (root, datasets) => {
+        const normalized = datasets
+            .map((item) => {
+                const weekly = toPercent(item?.usageWeekly);
+                if (weekly === null) {
+                    return null;
+                }
+
+                return {
+                    label: String(item?.label ?? 'Akun'),
+                    color: String(item?.color ?? '#2f6db5'),
+                    accountType: String(item?.accountType ?? 'free'),
+                    usage5h: toPercent(item?.usage5h),
+                    usageWeekly: weekly,
+                };
+            })
+            .filter((item) => item !== null);
+
+        if (normalized.length === 0) {
+            root.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data usage untuk divisualisasikan.</p>';
+            return;
+        }
+
+        const width = 920;
+        const height = 360;
+        const margin = { top: 26, right: 26, bottom: 62, left: 42 };
+        const plotWidth = width - margin.left - margin.right;
+        const plotHeight = height - margin.top - margin.bottom;
+        const x5h = margin.left + plotWidth * 0.14;
+        const xWeekly = margin.left + plotWidth * 0.86;
+        const yFromPercent = (percent) => margin.top + ((100 - percent) / 100) * plotHeight;
+        const ticks = [0, 20, 40, 60, 80, 100];
+
+        const gridLines = ticks.map((tick) => {
+            const y = yFromPercent(tick);
+            return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(38,37,30,0.14)" stroke-width="1" />
+                <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${tick}%</text>`;
+        }).join('');
+
+        const seriesSvg = normalized.map((item) => {
+            const points = [];
+            if (item.usage5h !== null) {
+                points.push({ x: x5h, y: yFromPercent(item.usage5h), label: `5h: ${item.usage5h}%` });
+            }
+            points.push({ x: xWeekly, y: yFromPercent(item.usageWeekly), label: `weekly: ${item.usageWeekly}%` });
+
+            const line = item.usage5h !== null
+                ? `<line x1="${x5h}" y1="${yFromPercent(item.usage5h)}" x2="${xWeekly}" y2="${yFromPercent(item.usageWeekly)}" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" opacity="0.9">
+                    <title>${escapeHtml(item.label)} · 5h ${item.usage5h}% · weekly ${item.usageWeekly}%</title>
+                </line>`
+                : '';
+
+            const circles = points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${item.color}" stroke="white" stroke-width="1.5">
+                <title>${escapeHtml(item.label)} · ${point.label}</title>
+            </circle>`).join('');
+
+            return `${line}${circles}`;
+        }).join('');
+
+        const legendItems = normalized.map((item) => {
+            const label = `${item.label} · ${item.usage5h === null ? 'weekly' : '5h + weekly'}`;
+            const valueText = item.usage5h === null
+                ? `weekly ${item.usageWeekly}%`
+                : `5h ${item.usage5h}% · weekly ${item.usageWeekly}%`;
+
+            return `<li class="flex items-start gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-1.5">
+                <span class="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style="background:${escapeHtml(item.color)}"></span>
+                <span class="min-w-0">
+                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(label)}</span>
+                    <span class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(valueText)}</span>
+                </span>
+            </li>`;
+        }).join('');
+
+        root.innerHTML = `
+            <div class="space-y-3">
+                <div class="overflow-x-auto">
+                    <svg viewBox="0 0 ${width} ${height}" class="min-w-[720px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
+                        ${gridLines}
+                        <line x1="${x5h}" y1="${margin.top}" x2="${x5h}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
+                        <line x1="${xWeekly}" y1="${margin.top}" x2="${xWeekly}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
+                        ${seriesSvg}
+                        <text x="${x5h}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage 5h</text>
+                        <text x="${xWeekly}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage Weekly</text>
+                    </svg>
+                </div>
+                <ul class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">${legendItems}</ul>
+            </div>
+        `;
+    };
+
+    const applyCaption = (dateText, itemCount) => {
+        if (!caption) {
+            return;
+        }
+
+        caption.textContent = `Tanggal data: ${dateText} · ${itemCount} seri`;
+    };
+
+    const setChartLoading = (isLoading) => {
+        chartRoot.classList.toggle('opacity-70', isLoading);
+        chartRoot.classList.toggle('pointer-events-none', isLoading);
+    };
+
+    const loadChartByDate = async (dateValue) => {
+        if (!endpoint || !dateValue) {
+            return;
+        }
+
+        setChartLoading(true);
+        try {
+            const response = await fetch(`${endpoint}?date=${encodeURIComponent(dateValue)}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const payload = await response.json();
+            if (!payload?.success || !Array.isArray(payload.data)) {
+                throw new Error('Invalid usage chart response.');
+            }
+
+            renderUsageComparisonChart(chartRoot, payload.data);
+            applyCaption(payload.date || dateValue, payload.data.length);
+        } catch (error) {
+            chartRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data grafik pada tanggal tersebut.</p>';
+            applyCaption(dateValue, 0);
+        } finally {
+            setChartLoading(false);
+        }
+    };
+
+    let chartData = [];
+    const initialDate = dateInput?.value || chartRoot.getAttribute('data-initial-date') || '';
+    if (dateInput && initialDate !== '') {
+        dateInput.value = initialDate;
+    }
+
+    try {
+        chartData = JSON.parse(chartRoot.getAttribute('data-usage-chart') || '[]');
+    } catch (error) {
+        chartData = [];
+    }
+
+    if (endpoint && initialDate !== '') {
+        loadChartByDate(initialDate);
+    } else {
+        renderUsageComparisonChart(chartRoot, Array.isArray(chartData) ? chartData : []);
+        applyCaption(initialDate !== '' ? initialDate : '-', Array.isArray(chartData) ? chartData.length : 0);
+    }
+
+    dateInput?.addEventListener('change', () => {
+        const selectedDate = dateInput.value;
+        if (selectedDate !== '') {
+            loadChartByDate(selectedDate);
+        }
+    });
+})();
+</script>
 <?= $this->endSection() ?>

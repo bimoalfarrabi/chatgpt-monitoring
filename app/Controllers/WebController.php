@@ -16,6 +16,20 @@ use CodeIgniter\HTTP\RedirectResponse;
 class WebController extends BaseController
 {
     private const HISTORY_PER_PAGE = 5;
+    private const USAGE_CHART_PALETTE = [
+        '#1f8a65',
+        '#cf2d56',
+        '#2f6db5',
+        '#9d6bcf',
+        '#c08532',
+        '#2f7b7b',
+        '#bf4e30',
+        '#6b6fda',
+        '#7f9152',
+        '#5f4a83',
+        '#b35f8a',
+        '#4d8f76',
+    ];
 
     private AccountModel $accounts;
     private SubscriptionModel $subscriptions;
@@ -183,6 +197,36 @@ class WebController extends BaseController
             'section' => $section,
             'pagination' => $pagination,
             'html' => view($view, $viewData),
+        ]);
+    }
+
+    public function dashboardUsageChart()
+    {
+        $date = $this->normalizeChartDate($this->request->getGet('date'));
+
+        return $this->response->setJSON([
+            'success' => true,
+            'date' => $date,
+            'data' => $this->buildDashboardUsageChartDataByDate($date),
+        ]);
+    }
+
+    public function accountUsageChart(int $id)
+    {
+        $account = $this->accounts->find($id);
+        if (! $account) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false,
+                'message' => 'Account tidak ditemukan.',
+            ]);
+        }
+
+        $date = $this->normalizeChartDate($this->request->getGet('date'));
+
+        return $this->response->setJSON([
+            'success' => true,
+            'date' => $date,
+            'data' => $this->buildAccountUsageChartDataByDate($id, $date),
         ]);
     }
 
@@ -1043,6 +1087,207 @@ class WebController extends BaseController
         $page = (int) $value;
 
         return $page > 0 ? $page : 1;
+    }
+
+    private function normalizeChartDate(mixed $value): string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return date('Y-m-d');
+        }
+
+        $date = \DateTime::createFromFormat('Y-m-d', $raw);
+        if (! $date instanceof \DateTime || $date->format('Y-m-d') !== $raw) {
+            return date('Y-m-d');
+        }
+
+        return $raw;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function chartDateRange(string $date): array
+    {
+        return [$date . ' 00:00:00', $date . ' 23:59:59'];
+    }
+
+    private function normalizeUsageTypeForChart(mixed $value): ?string
+    {
+        $usageType = strtolower(trim((string) $value));
+
+        return in_array($usageType, ['5h', 'weekly'], true) ? $usageType : null;
+    }
+
+    /**
+     * @return array<int, array{
+     *     label: string,
+     *     accountType: string,
+     *     usage5h: int|null,
+     *     usageWeekly: int|null,
+     *     color: string
+     * }>
+     */
+    private function buildDashboardUsageChartDataByDate(string $date): array
+    {
+        [$start, $end] = $this->chartDateRange($date);
+
+        $rows = db_connect()
+            ->table('account_usage_histories')
+            ->select('account_usage_histories.new_percent, account_usage_histories.created_at, account_usages.usage_type, subscriptions.account_id, subscriptions.account_type, subscriptions.status, accounts.account_name')
+            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
+            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
+            ->join('accounts', 'accounts.id = subscriptions.account_id')
+            ->where('account_usage_histories.created_at >=', $start)
+            ->where('account_usage_histories.created_at <=', $end)
+            ->orderBy('account_usage_histories.created_at', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $usageType = $this->normalizeUsageTypeForChart($row['usage_type'] ?? null);
+            if ($usageType === null) {
+                continue;
+            }
+
+            $accountId = (int) ($row['account_id'] ?? 0);
+            if ($accountId <= 0) {
+                continue;
+            }
+
+            $createdAt = strtotime((string) ($row['created_at'] ?? '')) ?: 0;
+            if (! isset($grouped[$accountId])) {
+                $accountName = trim((string) ($row['account_name'] ?? ''));
+                $grouped[$accountId] = [
+                    'label' => $accountName !== '' ? $accountName : ('Akun #' . $accountId),
+                    'accountType' => SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free')),
+                    'usage5h' => null,
+                    'usageWeekly' => null,
+                    '_updatedByType' => [],
+                ];
+            }
+
+            if (
+                ! isset($grouped[$accountId]['_updatedByType'][$usageType])
+                || $createdAt > (int) $grouped[$accountId]['_updatedByType'][$usageType]
+            ) {
+                $grouped[$accountId]['_updatedByType'][$usageType] = $createdAt;
+
+                if ($usageType === '5h') {
+                    $grouped[$accountId]['usage5h'] = (int) ($row['new_percent'] ?? 0);
+                } else {
+                    $grouped[$accountId]['usageWeekly'] = (int) ($row['new_percent'] ?? 0);
+                }
+            }
+
+            if (SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free')) === 'pro') {
+                $grouped[$accountId]['accountType'] = 'pro';
+            }
+        }
+
+        $result = array_values(array_filter($grouped, static function (array $item): bool {
+            return $item['usage5h'] !== null || $item['usageWeekly'] !== null;
+        }));
+
+        usort($result, static function (array $a, array $b): int {
+            return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+        });
+
+        foreach ($result as $index => &$item) {
+            $item['color'] = self::USAGE_CHART_PALETTE[$index % count(self::USAGE_CHART_PALETTE)];
+            unset($item['_updatedByType']);
+        }
+        unset($item);
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{
+     *     label: string,
+     *     accountType: string,
+     *     usage5h: int|null,
+     *     usageWeekly: int|null,
+     *     color: string
+     * }>
+     */
+    private function buildAccountUsageChartDataByDate(int $accountId, string $date): array
+    {
+        [$start, $end] = $this->chartDateRange($date);
+
+        $rows = db_connect()
+            ->table('account_usage_histories')
+            ->select('account_usage_histories.new_percent, account_usage_histories.created_at, account_usages.usage_type, subscriptions.id AS subscription_id, subscriptions.account_type, subscriptions.workspace_name, subscriptions.subscription_type')
+            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
+            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
+            ->where('subscriptions.account_id', $accountId)
+            ->where('account_usage_histories.created_at >=', $start)
+            ->where('account_usage_histories.created_at <=', $end)
+            ->orderBy('account_usage_histories.created_at', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $usageType = $this->normalizeUsageTypeForChart($row['usage_type'] ?? null);
+            if ($usageType === null) {
+                continue;
+            }
+
+            $subscriptionId = (int) ($row['subscription_id'] ?? 0);
+            if ($subscriptionId <= 0) {
+                continue;
+            }
+
+            $createdAt = strtotime((string) ($row['created_at'] ?? '')) ?: 0;
+            if (! isset($grouped[$subscriptionId])) {
+                $accountType = SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free'));
+                $workspaceName = trim((string) ($row['workspace_name'] ?? ''));
+                $subscriptionType = trim((string) ($row['subscription_type'] ?? 'Subscription'));
+                $label = $workspaceName !== '' ? ($subscriptionType . ' · ' . $workspaceName) : $subscriptionType;
+                if ($accountType !== 'pro') {
+                    $label .= ' · Free';
+                }
+
+                $grouped[$subscriptionId] = [
+                    'label' => $label,
+                    'accountType' => $accountType,
+                    'usage5h' => null,
+                    'usageWeekly' => null,
+                    '_updatedByType' => [],
+                ];
+            }
+
+            if (
+                ! isset($grouped[$subscriptionId]['_updatedByType'][$usageType])
+                || $createdAt > (int) $grouped[$subscriptionId]['_updatedByType'][$usageType]
+            ) {
+                $grouped[$subscriptionId]['_updatedByType'][$usageType] = $createdAt;
+
+                if ($usageType === '5h') {
+                    $grouped[$subscriptionId]['usage5h'] = (int) ($row['new_percent'] ?? 0);
+                } else {
+                    $grouped[$subscriptionId]['usageWeekly'] = (int) ($row['new_percent'] ?? 0);
+                }
+            }
+        }
+
+        $result = array_values(array_filter($grouped, static function (array $item): bool {
+            return $item['usage5h'] !== null || $item['usageWeekly'] !== null;
+        }));
+
+        usort($result, static function (array $a, array $b): int {
+            return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+        });
+
+        foreach ($result as $index => &$item) {
+            $item['color'] = self::USAGE_CHART_PALETTE[$index % count(self::USAGE_CHART_PALETTE)];
+            unset($item['_updatedByType']);
+        }
+        unset($item);
+
+        return $result;
     }
 
     private function currentUserId(): int
