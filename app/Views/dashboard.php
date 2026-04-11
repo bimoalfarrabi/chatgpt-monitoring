@@ -78,7 +78,7 @@ $chartDateDefault = date('Y-m-d');
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Grafik Penggunaan Seluruh Akun</h2>
     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-        Perbandingan persentase usage 5h dan weekly untuk akun pro, serta weekly only untuk akun free. Setiap akun dibedakan dengan warna.
+        Sumbu vertikal menunjukkan persentase usage, sumbu horizontal menunjukkan waktu update pada tanggal terpilih.
     </p>
     <div class="flex flex-wrap items-end gap-2">
         <label class="font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]">
@@ -94,13 +94,24 @@ $chartDateDefault = date('Y-m-d');
             Menampilkan data berdasarkan tanggal terpilih.
         </p>
     </div>
-    <div
-        id="dashboard-usage-chart"
-        data-chart-endpoint="/usage-chart/dashboard"
-        data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
-        data-usage-chart="[]"
-        class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3"
-    ></div>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3>Usage Weekly Seluruh Akun</h3>
+            <div
+                id="dashboard-usage-chart-weekly"
+                data-chart-endpoint="/usage-chart/dashboard"
+                data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
+                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
+            ></div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3>Usage 5h Akun Pro</h3>
+            <div
+                id="dashboard-usage-chart-5h"
+                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
+            ></div>
+        </article>
+    </div>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
@@ -362,14 +373,15 @@ $chartDateDefault = date('Y-m-d');
 </section>
 <script>
 (() => {
-    const chartRoot = document.getElementById('dashboard-usage-chart');
+    const weeklyRoot = document.getElementById('dashboard-usage-chart-weekly');
+    const fiveHourRoot = document.getElementById('dashboard-usage-chart-5h');
     const dateInput = document.querySelector('[data-dashboard-chart-date]');
     const caption = document.querySelector('[data-dashboard-chart-caption]');
-    if (!chartRoot) {
+    if (!weeklyRoot || !fiveHourRoot) {
         return;
     }
 
-    const endpoint = chartRoot.getAttribute('data-chart-endpoint') || '';
+    const endpoint = weeklyRoot.getAttribute('data-chart-endpoint') || '';
 
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -387,11 +399,43 @@ $chartDateDefault = date('Y-m-d');
         return Math.max(0, Math.min(100, numeric));
     };
 
-    const renderUsageComparisonChart = (root, datasets) => {
-        const normalized = datasets
+    const toMinute = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            return 0;
+        }
+
+        return Math.max(0, Math.min(1439, Math.round(numeric)));
+    };
+
+    const formatMinute = (minute) => {
+        const safeMinute = toMinute(minute);
+        const hour = String(Math.floor(safeMinute / 60)).padStart(2, '0');
+        const minutes = String(safeMinute % 60).padStart(2, '0');
+        return `${hour}:${minutes}`;
+    };
+
+    const renderTimeSeriesChart = (root, datasets, emptyMessage) => {
+        const normalized = (Array.isArray(datasets) ? datasets : [])
             .map((item) => {
-                const weekly = toPercent(item?.usageWeekly);
-                if (weekly === null) {
+                const points = (Array.isArray(item?.points) ? item.points : [])
+                    .map((point) => {
+                        const percent = toPercent(point?.percent);
+                        if (percent === null) {
+                            return null;
+                        }
+
+                        const minute = toMinute(point?.minute);
+                        return {
+                            minute,
+                            percent,
+                            time: typeof point?.time === 'string' && point.time !== '' ? point.time : formatMinute(minute),
+                            at: String(point?.at ?? ''),
+                        };
+                    })
+                    .filter((point) => point !== null);
+
+                if (points.length === 0) {
                     return null;
                 }
 
@@ -399,26 +443,25 @@ $chartDateDefault = date('Y-m-d');
                     label: String(item?.label ?? 'Akun'),
                     color: String(item?.color ?? '#2f6db5'),
                     accountType: String(item?.accountType ?? 'free'),
-                    usage5h: toPercent(item?.usage5h),
-                    usageWeekly: weekly,
+                    points,
                 };
             })
             .filter((item) => item !== null);
 
         if (normalized.length === 0) {
-            root.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data usage untuk divisualisasikan.</p>';
+            root.innerHTML = `<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">${escapeHtml(emptyMessage)}</p>`;
             return;
         }
 
         const width = 920;
-        const height = 360;
-        const margin = { top: 26, right: 26, bottom: 62, left: 42 };
+        const height = 350;
+        const margin = { top: 20, right: 18, bottom: 58, left: 42 };
         const plotWidth = width - margin.left - margin.right;
         const plotHeight = height - margin.top - margin.bottom;
-        const x5h = margin.left + plotWidth * 0.14;
-        const xWeekly = margin.left + plotWidth * 0.86;
         const yFromPercent = (percent) => margin.top + ((100 - percent) / 100) * plotHeight;
+        const xFromMinute = (minute) => margin.left + (toMinute(minute) / 1439) * plotWidth;
         const ticks = [0, 20, 40, 60, 80, 100];
+        const timeTicks = [0, 360, 720, 1080, 1439];
 
         const gridLines = ticks.map((tick) => {
             const y = yFromPercent(tick);
@@ -426,36 +469,36 @@ $chartDateDefault = date('Y-m-d');
                 <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${tick}%</text>`;
         }).join('');
 
+        const xAxisTicks = timeTicks.map((minute) => {
+            const x = xFromMinute(minute);
+            return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.1)" stroke-width="1" />
+                <text x="${x}" y="${height - margin.bottom + 22}" text-anchor="middle" font-size="11" fill="rgba(38,37,30,0.62)">${formatMinute(minute)}</text>`;
+        }).join('');
+
         const seriesSvg = normalized.map((item) => {
-            const points = [];
-            if (item.usage5h !== null) {
-                points.push({ x: x5h, y: yFromPercent(item.usage5h), label: `5h: ${item.usage5h}%` });
-            }
-            points.push({ x: xWeekly, y: yFromPercent(item.usageWeekly), label: `weekly: ${item.usageWeekly}%` });
+            const pathD = item.points
+                .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFromMinute(point.minute)} ${yFromPercent(point.percent)}`)
+                .join(' ');
 
-            const line = item.usage5h !== null
-                ? `<line x1="${x5h}" y1="${yFromPercent(item.usage5h)}" x2="${xWeekly}" y2="${yFromPercent(item.usageWeekly)}" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" opacity="0.9">
-                    <title>${escapeHtml(item.label)} · 5h ${item.usage5h}% · weekly ${item.usageWeekly}%</title>
-                </line>`
-                : '';
+            const line = `<path d="${pathD}" fill="none" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+                <title>${escapeHtml(item.label)}</title>
+            </path>`;
 
-            const circles = points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${item.color}" stroke="white" stroke-width="1.5">
-                <title>${escapeHtml(item.label)} · ${point.label}</title>
+            const circles = item.points.map((point) => `<circle cx="${xFromMinute(point.minute)}" cy="${yFromPercent(point.percent)}" r="3.6" fill="${item.color}" stroke="white" stroke-width="1.3">
+                <title>${escapeHtml(item.label)} · ${escapeHtml(point.time)} · ${point.percent}%</title>
             </circle>`).join('');
 
             return `${line}${circles}`;
         }).join('');
 
         const legendItems = normalized.map((item) => {
-            const label = `${item.label} · ${item.usage5h === null ? 'weekly' : '5h + weekly'}`;
-            const valueText = item.usage5h === null
-                ? `weekly ${item.usageWeekly}%`
-                : `5h ${item.usage5h}% · weekly ${item.usageWeekly}%`;
+            const lastPoint = item.points[item.points.length - 1];
+            const valueText = lastPoint ? `${lastPoint.time} · ${lastPoint.percent}%` : '-';
 
             return `<li class="flex items-start gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-1.5">
                 <span class="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style="background:${escapeHtml(item.color)}"></span>
                 <span class="min-w-0">
-                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(label)}</span>
+                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(item.label)}</span>
                     <span class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(valueText)}</span>
                 </span>
             </li>`;
@@ -466,11 +509,9 @@ $chartDateDefault = date('Y-m-d');
                 <div class="overflow-x-auto">
                     <svg viewBox="0 0 ${width} ${height}" class="min-w-[720px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
                         ${gridLines}
-                        <line x1="${x5h}" y1="${margin.top}" x2="${x5h}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
-                        <line x1="${xWeekly}" y1="${margin.top}" x2="${xWeekly}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" stroke-width="1.2" />
+                        ${xAxisTicks}
                         ${seriesSvg}
-                        <text x="${x5h}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage 5h</text>
-                        <text x="${xWeekly}" y="${height - margin.bottom + 24}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Usage Weekly</text>
+                        <text x="${margin.left + (plotWidth / 2)}" y="${height - margin.bottom + 40}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Waktu</text>
                     </svg>
                 </div>
                 <ul class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">${legendItems}</ul>
@@ -478,17 +519,19 @@ $chartDateDefault = date('Y-m-d');
         `;
     };
 
-    const applyCaption = (dateText, itemCount) => {
+    const applyCaption = (dateText, weeklyCount, fiveHourCount) => {
         if (!caption) {
             return;
         }
 
-        caption.textContent = `Tanggal data: ${dateText} · ${itemCount} seri`;
+        caption.textContent = `Tanggal data: ${dateText} · weekly ${weeklyCount} seri · 5h ${fiveHourCount} seri`;
     };
 
     const setChartLoading = (isLoading) => {
-        chartRoot.classList.toggle('opacity-70', isLoading);
-        chartRoot.classList.toggle('pointer-events-none', isLoading);
+        weeklyRoot.classList.toggle('opacity-70', isLoading);
+        weeklyRoot.classList.toggle('pointer-events-none', isLoading);
+        fiveHourRoot.classList.toggle('opacity-70', isLoading);
+        fiveHourRoot.classList.toggle('pointer-events-none', isLoading);
     };
 
     const loadChartByDate = async (dateValue) => {
@@ -510,37 +553,36 @@ $chartDateDefault = date('Y-m-d');
             }
 
             const payload = await response.json();
-            if (!payload?.success || !Array.isArray(payload.data)) {
+            if (!payload?.success || typeof payload.data !== 'object' || payload.data === null) {
                 throw new Error('Invalid usage chart response.');
             }
 
-            renderUsageComparisonChart(chartRoot, payload.data);
-            applyCaption(payload.date || dateValue, payload.data.length);
+            const weeklySeries = Array.isArray(payload.data.weekly) ? payload.data.weekly : [];
+            const fiveHourSeries = Array.isArray(payload.data.five_hour) ? payload.data.five_hour : [];
+
+            renderTimeSeriesChart(weeklyRoot, weeklySeries, 'Belum ada data weekly pada tanggal ini.');
+            renderTimeSeriesChart(fiveHourRoot, fiveHourSeries, 'Belum ada data usage 5h (akun pro) pada tanggal ini.');
+            applyCaption(payload.date || dateValue, weeklySeries.length, fiveHourSeries.length);
         } catch (error) {
-            chartRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data grafik pada tanggal tersebut.</p>';
-            applyCaption(dateValue, 0);
+            weeklyRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data weekly pada tanggal tersebut.</p>';
+            fiveHourRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data 5h pada tanggal tersebut.</p>';
+            applyCaption(dateValue, 0, 0);
         } finally {
             setChartLoading(false);
         }
     };
 
-    let chartData = [];
-    const initialDate = dateInput?.value || chartRoot.getAttribute('data-initial-date') || '';
+    const initialDate = dateInput?.value || weeklyRoot.getAttribute('data-initial-date') || '';
     if (dateInput && initialDate !== '') {
         dateInput.value = initialDate;
-    }
-
-    try {
-        chartData = JSON.parse(chartRoot.getAttribute('data-usage-chart') || '[]');
-    } catch (error) {
-        chartData = [];
     }
 
     if (endpoint && initialDate !== '') {
         loadChartByDate(initialDate);
     } else {
-        renderUsageComparisonChart(chartRoot, Array.isArray(chartData) ? chartData : []);
-        applyCaption(initialDate !== '' ? initialDate : '-', Array.isArray(chartData) ? chartData.length : 0);
+        renderTimeSeriesChart(weeklyRoot, [], 'Belum ada data weekly pada tanggal ini.');
+        renderTimeSeriesChart(fiveHourRoot, [], 'Belum ada data usage 5h (akun pro) pada tanggal ini.');
+        applyCaption(initialDate !== '' ? initialDate : '-', 0, 0);
     }
 
     dateInput?.addEventListener('change', () => {
