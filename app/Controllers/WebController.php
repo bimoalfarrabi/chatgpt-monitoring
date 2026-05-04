@@ -90,7 +90,41 @@ class WebController extends BaseController
 
     public function accountsIndex(): string
     {
-        $accounts = $this->accounts->orderBy('id', 'DESC')->findAll();
+        $search = trim((string) $this->request->getGet('q'));
+        $sortByInput = strtolower(trim((string) $this->request->getGet('sort_by')));
+        $sortDirInput = strtolower(trim((string) $this->request->getGet('sort_dir')));
+
+        $sortByMap = [
+            'newest' => 'id',
+            'oldest' => 'id',
+            'name' => 'account_name',
+            'email' => 'email',
+        ];
+
+        $sortBy = array_key_exists($sortByInput, $sortByMap) ? $sortByInput : 'newest';
+        $sortDir = in_array($sortDirInput, ['asc', 'desc'], true)
+            ? $sortDirInput
+            : (($sortBy === 'oldest' || $sortBy === 'name' || $sortBy === 'email') ? 'asc' : 'desc');
+
+        if ($sortBy === 'oldest') {
+            $sortDir = 'asc';
+        } elseif ($sortBy === 'newest') {
+            $sortDir = 'desc';
+        }
+
+        $query = $this->accounts;
+        if ($search !== '') {
+            $query = $query
+                ->groupStart()
+                ->like('account_name', $search)
+                ->orLike('email', $search)
+                ->groupEnd();
+        }
+
+        $accounts = $query
+            ->orderBy($sortByMap[$sortBy], strtoupper($sortDir))
+            ->findAll();
+
         foreach ($accounts as &$account) {
             $account['subscriptions'] = $this->enrichedSubscriptions(
                 $this->subscriptions
@@ -102,6 +136,11 @@ class WebController extends BaseController
 
         return view('accounts/index', [
             'accounts'   => $accounts,
+            'filters'   => [
+                'q' => $search,
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
+            ],
             'pageTitle'  => 'Account List',
         ]);
     }

@@ -16,6 +16,11 @@ $labelClass = 'font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-
 $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-ink transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.75)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 
+$filters = is_array($filters ?? null) ? $filters : [];
+$searchQuery = trim((string) ($filters['q'] ?? ''));
+$sortBy = strtolower(trim((string) ($filters['sort_by'] ?? 'newest')));
+$sortDir = strtolower(trim((string) ($filters['sort_dir'] ?? 'desc')));
+
 $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) old('account_type', 'free'));
 $oldProAccountType = \App\Services\SubscriptionStatusService::normalizeProAccountType((string) old('pro_account_type', ''));
 $oldIsWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($oldAccountType);
@@ -130,6 +135,36 @@ $createFormExpanded = old('account_name') !== null
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h3>Search & Sort</h3>
+    <form method="get" action="/accounts" class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
+        <label class="<?= $labelClass ?>">
+            Search Nama/Email
+            <input class="<?= $inputClass ?>" type="text" name="q" value="<?= esc($searchQuery) ?>" placeholder="contoh: john / gmail.com">
+        </label>
+        <label class="<?= $labelClass ?>">
+            Sort By
+            <select class="<?= $inputClass ?>" name="sort_by">
+                <option value="newest" <?= $sortBy === 'newest' ? 'selected' : '' ?>>Terbaru</option>
+                <option value="oldest" <?= $sortBy === 'oldest' ? 'selected' : '' ?>>Terlama</option>
+                <option value="name" <?= $sortBy === 'name' ? 'selected' : '' ?>>Nama</option>
+                <option value="email" <?= $sortBy === 'email' ? 'selected' : '' ?>>Email</option>
+            </select>
+        </label>
+        <label class="<?= $labelClass ?>">
+            Arah Sort
+            <select class="<?= $inputClass ?>" name="sort_dir">
+                <option value="asc" <?= $sortDir === 'asc' ? 'selected' : '' ?>>Ascending (A-Z)</option>
+                <option value="desc" <?= $sortDir === 'desc' ? 'selected' : '' ?>>Descending (Z-A)</option>
+            </select>
+        </label>
+        <div class="flex flex-wrap items-end gap-2">
+            <button class="<?= $buttonPrimary ?>" type="submit">Terapkan</button>
+            <a class="<?= $buttonSecondary ?> no-underline" href="/accounts">Reset</a>
+        </div>
+    </form>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Subscription per Akun</h2>
     <div class="<?= $tableWrap ?>">
         <table class="data-table-cards">
@@ -155,7 +190,11 @@ $createFormExpanded = old('account_name') !== null
             </thead>
             <tbody>
             <?php if ($accounts === []): ?>
-                <tr><td colspan="16" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data akun.</td></tr>
+                <tr>
+                    <td colspan="16" class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">
+                        <?= $searchQuery !== '' ? 'Tidak ada akun yang cocok dengan pencarian.' : 'Belum ada data akun.' ?>
+                    </td>
+                </tr>
             <?php endif; ?>
 
             <?php foreach ($accounts as $account): ?>
