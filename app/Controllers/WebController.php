@@ -503,6 +503,30 @@ class WebController extends BaseController
         return redirect()->to('/accounts')->with('success', 'Account berhasil dihapus.');
     }
 
+    public function updateAccountName(int $id): RedirectResponse
+    {
+        $account = $this->accounts->find($id);
+        if (! $account) {
+            return redirect()->back()->with('error', 'Account tidak ditemukan.');
+        }
+
+        $data = $this->request->getPost();
+        $rules = [
+            'account_name' => 'required|min_length[2]|max_length[120]',
+        ];
+
+        if (! $this->validateData($data, $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $accountName = trim((string) ($data['account_name'] ?? ''));
+        $this->accounts->update($id, [
+            'account_name' => $accountName,
+        ]);
+
+        return redirect()->to('/accounts/' . $id)->with('success', 'Nama account berhasil diperbarui.');
+    }
+
     public function updateUsage(int $id): RedirectResponse
     {
         $usage = $this->usages->find($id);

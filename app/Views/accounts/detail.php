@@ -49,6 +49,18 @@ $chartDateDefault = date('Y-m-d');
         </form>
     </div>
 
+    <form method="post" action="/accounts/<?= esc((string) $account['id']) ?>/update-name" class="space-y-2 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
+        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+            <label class="<?= $labelClass ?>">
+                Ubah Nama Akun
+                <input class="<?= $inputClass ?>" type="text" name="account_name" required value="<?= esc(old('account_name', (string) ($account['account_name'] ?? ''))) ?>">
+            </label>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button class="<?= $buttonPrimary ?>" type="submit">Simpan Nama</button>
+        </div>
+    </form>
+
     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
             <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Password</div>
