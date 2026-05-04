@@ -126,7 +126,7 @@ $chartDateDefault = date('Y-m-d');
     $isPro = $accountType === 'pro';
     $proType = (string) ($subscription['pro_account_type'] ?? '');
     $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
-    $showPersonalWorkspace = $accountType === 'plus' || $proType === 'personal_invite';
+    $showPersonalWorkspace = $accountType === 'free' || $accountType === 'plus' || $proType === 'personal_invite';
     $proTypeLabel = $accountType === 'plus'
         ? 'Akun dari Seller (Personal)'
         : ($proType === 'personal_invite'
@@ -172,6 +172,7 @@ $chartDateDefault = date('Y-m-d');
                     <label class="<?= $labelClass ?>">
                         Jenis Akun ChatGPT
                         <select class="<?= $inputClass ?>" name="account_type" required data-subscription-type-select="<?= esc((string) $formId) ?>">
+                            <option value="free" <?= $accountType === 'free' ? 'selected' : '' ?>>Free (Personal)</option>
                             <option value="pro" <?= $accountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
                             <option value="plus" <?= $accountType === 'plus' ? 'selected' : '' ?>>Plus (Seller)</option>
                         </select>
@@ -280,8 +281,12 @@ $chartDateDefault = date('Y-m-d');
                 </section>
             <?php endif; ?>
         <?php else: ?>
+            <?php $freePersonalWorkspace = trim((string) ($subscription['personal_workspace_name'] ?? '')); ?>
             <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
                 Akun free tidak menggunakan form subscription. Data weekly tetap bisa dipantau dan diperbarui di bawah.
+            </div>
+            <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                Workspace personal: <?= esc($freePersonalWorkspace !== '' ? $freePersonalWorkspace : '-') ?>
             </div>
         <?php endif; ?>
 
@@ -671,7 +676,7 @@ $chartDateDefault = date('Y-m-d');
             proTypeSelect.value = isWorkspace ? 'seller_account' : '';
         }
 
-        const isPersonalInvite = currentValue === 'plus' || (isPro && proTypeSelect?.value === 'personal_invite');
+        const isPersonalInvite = currentValue === 'free' || currentValue === 'plus' || (isPro && proTypeSelect?.value === 'personal_invite');
 
         blocks.forEach((element) => {
             element.classList.toggle('hidden', !isWorkspace);

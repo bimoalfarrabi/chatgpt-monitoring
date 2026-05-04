@@ -140,7 +140,7 @@ $createFormExpanded = old('account_name') !== null
                 <th>Jenis Akun</th>
                 <th>Jenis Akun Workspace</th>
                 <th>Workspace Invite (Pro)</th>
-                <th>Workspace Personal (Pro Invite/Plus)</th>
+                <th>Workspace Personal (Free/Pro Invite/Plus)</th>
                 <th>Status Workspace</th>
                 <th>Sumber Store</th>
                 <th>Tipe Subscription</th>
@@ -198,7 +198,7 @@ $createFormExpanded = old('account_name') !== null
                             }
                         }
                         $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
-                        $showPersonalWorkspace = $accountType === 'plus' || $proType === 'personal_invite';
+                        $showPersonalWorkspace = $accountType === 'free' || $accountType === 'plus' || $proType === 'personal_invite';
                         ?>
                         <tr>
                             <td><?= esc($account['account_name']) ?></td>

@@ -297,7 +297,9 @@ class WebController extends BaseController
                 'account_type' => 'free',
                 'pro_account_type' => null,
                 'workspace_name' => null,
-                'personal_workspace_name' => null,
+                'personal_workspace_name' => trim((string) ($data['account_name'] ?? '')) !== ''
+                    ? trim((string) ($data['account_name'] ?? ''))
+                    : 'Personal Workspace',
                 'is_workspace_deactivated' => 0,
                 'store_source' => 'free_account',
                 'subscription_type' => 'Free Weekly',
@@ -332,13 +334,13 @@ class WebController extends BaseController
         $data = $this->request->getPost();
 
         $rules = [
-            'account_type'      => 'required|in_list[pro,plus]',
+            'account_type'      => 'required|in_list[free,pro,plus]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
             'is_workspace_deactivated' => 'permit_empty',
-            'store_source'      => 'required|max_length[100]',
-            'subscription_type' => 'required|max_length[100]',
+            'store_source'      => 'permit_empty|max_length[100]',
+            'subscription_type' => 'permit_empty|max_length[100]',
             'subscribed_at'     => 'permit_empty|valid_date[Y-m-d\\TH:i]',
             'is_one_month_duration' => 'permit_empty',
         ];
@@ -352,9 +354,27 @@ class WebController extends BaseController
             return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
         }
 
+        $accountType = $subscriptionData['account_type'];
+        if (SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
+            if (trim((string) ($data['store_source'] ?? '')) === '') {
+                return redirect()->back()->withInput()->with('error', 'Sumber store wajib diisi untuk akun workspace (pro/plus).');
+            }
+
+            if (trim((string) ($data['subscription_type'] ?? '')) === '') {
+                return redirect()->back()->withInput()->with('error', 'Tipe subscription wajib diisi untuk akun workspace (pro/plus).');
+            }
+        }
+
+        $storeSource = SubscriptionStatusService::isWorkspaceAccountType($accountType)
+            ? trim((string) ($data['store_source'] ?? ''))
+            : 'free_account';
+        $subscriptionType = SubscriptionStatusService::isWorkspaceAccountType($accountType)
+            ? trim((string) ($data['subscription_type'] ?? ''))
+            : 'Free Weekly';
+
         $this->subscriptions->update($id, array_merge([
-            'store_source'      => $data['store_source'],
-            'subscription_type' => $data['subscription_type'],
+            'store_source'      => $storeSource,
+            'subscription_type' => $subscriptionType,
         ], $subscriptionData['payload']));
 
         $this->syncUsagesForSubscription(
@@ -363,6 +383,10 @@ class WebController extends BaseController
             $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
+
+        if ($accountType === 'free') {
+            $this->renewalHistories->where('subscription_id', $id)->delete();
+        }
 
         return redirect()->back()->with('success', 'Subscription berhasil diupdate.');
     }
@@ -705,9 +729,12 @@ class WebController extends BaseController
 
             if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
                 $proAccountType = null;
+                if ($personalWorkspaceName === null && $workspaceName !== null) {
+                    $personalWorkspaceName = $workspaceName;
+                }
                 $workspaceName = null;
-                $personalWorkspaceName = null;
                 $subscription['subscribed_at'] = null;
+                $isWorkspaceDeactivated = false;
                 $isOneMonthDuration = false;
             } elseif ($accountType === 'plus') {
                 if ($personalWorkspaceName === null && $workspaceName !== null) {
@@ -787,21 +814,42 @@ class WebController extends BaseController
     private function buildSubscriptionPayload(array $data): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
+        $personalWorkspaceName = trim((string) ($data['personal_workspace_name'] ?? ''));
+        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
+        $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
+        $workspaceName = $workspaceName === '' ? null : $workspaceName;
+
         if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
+            if ($personalWorkspaceName === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'pro_account_type' => null,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Workspace personal wajib diisi untuk akun free.',
+                ];
+            }
+
             return [
-                'payload' => [],
-                'account_type' => $accountType,
+                'payload' => [
+                    'account_type' => 'free',
+                    'pro_account_type' => null,
+                    'workspace_name' => null,
+                    'personal_workspace_name' => $personalWorkspaceName,
+                    'is_workspace_deactivated' => 0,
+                    'subscribed_at' => null,
+                    'is_one_month_duration' => 0,
+                    'expired_at' => null,
+                    'status' => 'active',
+                ],
+                'account_type' => 'free',
                 'pro_account_type' => null,
                 'default_reset_at' => date('Y-m-d H:i:s'),
-                'error' => 'Akun free tidak termasuk subscription.',
+                'error' => null,
             ];
         }
 
         $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $data['pro_account_type'] ?? null);
-        $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
-        $workspaceName = $workspaceName === '' ? null : $workspaceName;
-        $personalWorkspaceName = trim((string) ($data['personal_workspace_name'] ?? ''));
-        $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
 
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($data['is_workspace_deactivated'] ?? null, false);
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);

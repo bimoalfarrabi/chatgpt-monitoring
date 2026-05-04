@@ -151,7 +151,10 @@ class AccountsController extends BaseApiController
             $isOneMonthDuration = false;
             $isWorkspaceDeactivated = false;
             $proAccountType = null;
-            $personalWorkspaceName = null;
+            if ($personalWorkspaceName === null) {
+                $personalWorkspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
+                $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
+            }
         } elseif ($accountType === 'plus' && $personalWorkspaceName === null) {
             $personalWorkspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
             $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
