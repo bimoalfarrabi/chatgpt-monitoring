@@ -105,7 +105,7 @@ $chartDateDefault = date('Y-m-d');
             ></div>
         </article>
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
-            <h3>Usage 5h Akun Pro</h3>
+            <h3>Usage 5h Akun Workspace</h3>
             <div
                 id="dashboard-usage-chart-5h"
                 class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
@@ -195,9 +195,10 @@ $chartDateDefault = date('Y-m-d');
                         </span>
                     </td>
                     <td>
-                        <?php $isPro = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free')) === 'pro'; ?>
-                        <?php $isPersonalInvite = $isPro && \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? '')) === 'personal_invite'; ?>
-                        <?php if (! $isPro): ?>
+                        <?php $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free')); ?>
+                        <?php $isWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($accountType); ?>
+                        <?php $isPersonalInvite = $accountType === 'pro' && \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? '')) === 'personal_invite'; ?>
+                        <?php if (! $isWorkspace): ?>
                             <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
                         <?php else: ?>
                             <?php $usage5h = $subscription['usages']['5h'] ?? null; ?>
@@ -211,7 +212,7 @@ $chartDateDefault = date('Y-m-d');
                         <?php $usageWSeller = $subscription['usages']['weekly'] ?? null; ?>
                         <?php $pwSeller = (int) ($usageWSeller['remaining_percent'] ?? 0); ?>
                         <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                        <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($isPersonalInvite ? 'Seller' : 'Weekly') ?></div>
+                        <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($accountType === 'plus' ? 'Personal' : ($isPersonalInvite ? 'Seller' : 'Weekly')) ?></div>
                         <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
                         <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
 
@@ -561,7 +562,7 @@ $chartDateDefault = date('Y-m-d');
             const fiveHourSeries = Array.isArray(payload.data.five_hour) ? payload.data.five_hour : [];
 
             renderTimeSeriesChart(weeklyRoot, weeklySeries, 'Belum ada data weekly pada tanggal ini.');
-            renderTimeSeriesChart(fiveHourRoot, fiveHourSeries, 'Belum ada data usage 5h (akun pro) pada tanggal ini.');
+            renderTimeSeriesChart(fiveHourRoot, fiveHourSeries, 'Belum ada data usage 5h (akun workspace) pada tanggal ini.');
             applyCaption(payload.date || dateValue, weeklySeries.length, fiveHourSeries.length);
         } catch (error) {
             weeklyRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data weekly pada tanggal tersebut.</p>';
@@ -581,7 +582,7 @@ $chartDateDefault = date('Y-m-d');
         loadChartByDate(initialDate);
     } else {
         renderTimeSeriesChart(weeklyRoot, [], 'Belum ada data weekly pada tanggal ini.');
-        renderTimeSeriesChart(fiveHourRoot, [], 'Belum ada data usage 5h (akun pro) pada tanggal ini.');
+        renderTimeSeriesChart(fiveHourRoot, [], 'Belum ada data usage 5h (akun workspace) pada tanggal ini.');
         applyCaption(initialDate !== '' ? initialDate : '-', 0, 0);
     }
 

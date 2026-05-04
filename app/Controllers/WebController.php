@@ -59,7 +59,7 @@ class WebController extends BaseController
         }
 
         $subscriptions = $this->enrichedSubscriptions(
-            $this->subscriptions->where('account_type', 'pro')->orderBy('expired_at', 'ASC')->findAll()
+            $this->subscriptions->whereIn('account_type', ['pro', 'plus'])->orderBy('expired_at', 'ASC')->findAll()
         );
         $freeSubscriptions = $this->enrichedSubscriptions(
             $this->subscriptions->where('account_type', 'free')->orderBy('updated_at', 'DESC')->findAll()
@@ -239,7 +239,7 @@ class WebController extends BaseController
             'email'             => 'required|valid_email|is_unique[accounts.email]',
             'password_hint'     => 'permit_empty|max_length[255]',
             'notes'             => 'permit_empty',
-            'account_type'      => 'required|in_list[free,pro]',
+            'account_type'      => 'required|in_list[free,pro,plus]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
@@ -256,13 +256,13 @@ class WebController extends BaseController
 
         $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
         $subscriptionData = null;
-        if ($accountType === 'pro') {
+        if (SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
             if (trim((string) ($data['store_source'] ?? '')) === '') {
-                return redirect()->back()->withInput()->with('error', 'Sumber store wajib diisi untuk akun pro.');
+                return redirect()->back()->withInput()->with('error', 'Sumber store wajib diisi untuk akun workspace (pro/plus).');
             }
 
             if (trim((string) ($data['subscription_type'] ?? '')) === '') {
-                return redirect()->back()->withInput()->with('error', 'Tipe subscription wajib diisi untuk akun pro.');
+                return redirect()->back()->withInput()->with('error', 'Tipe subscription wajib diisi untuk akun workspace (pro/plus).');
             }
 
             $subscriptionData = $this->buildSubscriptionPayload($data);
@@ -278,7 +278,7 @@ class WebController extends BaseController
             'notes'         => $data['notes'] ?? null,
         ], true);
 
-        if ($accountType === 'pro' && $subscriptionData !== null) {
+        if (SubscriptionStatusService::isWorkspaceAccountType($accountType) && $subscriptionData !== null) {
             $subscriptionId = $this->subscriptions->insert(array_merge([
                 'account_id'        => $accountId,
                 'store_source'      => $data['store_source'],
@@ -315,7 +315,7 @@ class WebController extends BaseController
             );
         }
 
-        $successMessage = $accountType === 'pro'
+        $successMessage = SubscriptionStatusService::isWorkspaceAccountType($accountType)
             ? 'Account & subscription berhasil dibuat.'
             : 'Account free berhasil dibuat dengan tracking weekly.';
 
@@ -332,7 +332,7 @@ class WebController extends BaseController
         $data = $this->request->getPost();
 
         $rules = [
-            'account_type'      => 'required|in_list[pro]',
+            'account_type'      => 'required|in_list[pro,plus]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
@@ -376,8 +376,8 @@ class WebController extends BaseController
 
         $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
-        if ($accountType !== 'pro') {
-            return redirect()->back()->with('error', 'Auto perpanjang hanya berlaku untuk akun pro.');
+        if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
+            return redirect()->back()->with('error', 'Auto perpanjang hanya berlaku untuk akun workspace (pro/plus).');
         }
 
         if ($isWorkspaceDeactivated) {
@@ -424,15 +424,15 @@ class WebController extends BaseController
 
         $accountType = SubscriptionStatusService::normalizeAccountType($sourceSubscription['account_type'] ?? null);
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($sourceSubscription['is_workspace_deactivated'] ?? null);
-        if ($accountType !== 'pro' || ! $isWorkspaceDeactivated) {
-            return redirect()->back()->with('error', 'Workspace baru hanya bisa dibuat dari subscription pro yang status workspace-nya deactivated.');
+        if (! SubscriptionStatusService::isWorkspaceAccountType($accountType) || ! $isWorkspaceDeactivated) {
+            return redirect()->back()->with('error', 'Workspace baru hanya bisa dibuat dari subscription workspace (pro/plus) yang status workspace-nya deactivated.');
         }
 
         $data = $this->request->getPost();
         $rules = [
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
-            'pro_account_type'  => 'required|in_list[personal_invite,seller_account]',
+            'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
             'workspace_name'    => 'required|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
             'subscribed_at'     => 'required|valid_date[Y-m-d\\TH:i]',
@@ -443,7 +443,7 @@ class WebController extends BaseController
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $data['account_type'] = 'pro';
+        $data['account_type'] = $accountType;
         $data['is_workspace_deactivated'] = 0;
         $subscriptionData = $this->buildSubscriptionPayload($data);
         if ($subscriptionData['error'] !== null) {
@@ -458,7 +458,7 @@ class WebController extends BaseController
 
         $this->syncUsagesForSubscription(
             (int) $newSubscriptionId,
-            'pro',
+            $accountType,
             $subscriptionData['pro_account_type'],
             $subscriptionData['default_reset_at']
         );
@@ -697,23 +697,28 @@ class WebController extends BaseController
             $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
             $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
             $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
-            $proAccountType = SubscriptionStatusService::normalizeProAccountType($subscription['pro_account_type'] ?? null);
+            $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $subscription['pro_account_type'] ?? null);
             $workspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
             $workspaceName = $workspaceName === '' ? null : $workspaceName;
             $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
             $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
 
-            if ($accountType !== 'pro') {
+            if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
                 $proAccountType = null;
                 $workspaceName = null;
                 $personalWorkspaceName = null;
                 $subscription['subscribed_at'] = null;
                 $isOneMonthDuration = false;
+            } elseif ($accountType === 'plus') {
+                if ($personalWorkspaceName === null && $workspaceName !== null) {
+                    $personalWorkspaceName = $workspaceName;
+                }
+                $workspaceName = $personalWorkspaceName;
             } elseif ($proAccountType !== 'personal_invite') {
                 $personalWorkspaceName = null;
             }
 
-            $expiredAt = $accountType === 'pro'
+            $expiredAt = SubscriptionStatusService::isWorkspaceAccountType($accountType)
                 ? SubscriptionStatusService::calculateExpiredAt($subscription['subscribed_at'] ?? null, $isOneMonthDuration)
                 : null;
 
@@ -782,7 +787,7 @@ class WebController extends BaseController
     private function buildSubscriptionPayload(array $data): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($data['account_type'] ?? null);
-        if ($accountType !== 'pro') {
+        if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
             return [
                 'payload' => [],
                 'account_type' => $accountType,
@@ -792,7 +797,7 @@ class WebController extends BaseController
             ];
         }
 
-        $proAccountType = SubscriptionStatusService::normalizeProAccountType($data['pro_account_type'] ?? null);
+        $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $data['pro_account_type'] ?? null);
         $workspaceName = trim((string) ($data['workspace_name'] ?? ''));
         $workspaceName = $workspaceName === '' ? null : $workspaceName;
         $personalWorkspaceName = trim((string) ($data['personal_workspace_name'] ?? ''));
@@ -802,7 +807,7 @@ class WebController extends BaseController
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
         $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
 
-        if ($proAccountType === null) {
+        if (SubscriptionStatusService::requiresInviteType($accountType) && $proAccountType === null) {
             return [
                 'payload' => [],
                 'account_type' => $accountType,
@@ -812,13 +817,31 @@ class WebController extends BaseController
             ];
         }
 
+        if ($accountType === 'plus') {
+            if ($personalWorkspaceName === null && $workspaceName !== null) {
+                $personalWorkspaceName = $workspaceName;
+            }
+
+            if ($personalWorkspaceName === null) {
+                return [
+                    'payload' => [],
+                    'account_type' => $accountType,
+                    'pro_account_type' => $proAccountType,
+                    'default_reset_at' => date('Y-m-d H:i:s'),
+                    'error' => 'Workspace personal wajib diisi untuk akun plus.',
+                ];
+            }
+
+            $workspaceName = $personalWorkspaceName;
+        }
+
         if ($workspaceName === null) {
             return [
                 'payload' => [],
                 'account_type' => $accountType,
                 'pro_account_type' => $proAccountType,
                 'default_reset_at' => date('Y-m-d H:i:s'),
-                'error' => 'Nama workspace wajib diisi untuk akun pro.',
+                'error' => 'Nama workspace wajib diisi untuk akun workspace (pro/plus).',
             ];
         }
 
@@ -828,11 +851,11 @@ class WebController extends BaseController
                 'account_type' => $accountType,
                 'pro_account_type' => $proAccountType,
                 'default_reset_at' => date('Y-m-d H:i:s'),
-                'error' => 'Tanggal langganan wajib diisi untuk akun pro.',
+                'error' => 'Tanggal langganan wajib diisi untuk akun workspace (pro/plus).',
             ];
         }
 
-        if ($proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
+        if ($accountType === 'pro' && $proAccountType === 'personal_invite' && $personalWorkspaceName === null) {
             return [
                 'payload' => [],
                 'account_type' => $accountType,
@@ -842,11 +865,11 @@ class WebController extends BaseController
             ];
         }
 
-        if ($proAccountType !== 'personal_invite') {
+        if ($accountType === 'pro' && $proAccountType !== 'personal_invite') {
             $personalWorkspaceName = null;
         }
 
-        $expiredAt = $accountType === 'pro'
+        $expiredAt = SubscriptionStatusService::isWorkspaceAccountType($accountType)
             ? SubscriptionStatusService::calculateExpiredAt($subscribedAt, $isOneMonthDuration)
             : null;
 
@@ -860,7 +883,7 @@ class WebController extends BaseController
                 'personal_workspace_name' => $personalWorkspaceName,
                 'is_workspace_deactivated' => $isWorkspaceDeactivated ? 1 : 0,
                 'subscribed_at' => $subscribedAt,
-                'is_one_month_duration' => $accountType === 'pro' ? ($isOneMonthDuration ? 1 : 0) : null,
+                'is_one_month_duration' => SubscriptionStatusService::isWorkspaceAccountType($accountType) ? ($isOneMonthDuration ? 1 : 0) : null,
                 'expired_at' => $expiredAt,
                 'status' => $status,
             ],
@@ -970,7 +993,7 @@ class WebController extends BaseController
     private function workspaceHistory(array $subscriptions): array
     {
         $rows = array_values(array_filter($subscriptions, static function (array $subscription): bool {
-            return SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null) === 'pro';
+            return SubscriptionStatusService::isWorkspaceAccountType($subscription['account_type'] ?? null);
         }));
 
         usort($rows, static function (array $a, array $b): int {
@@ -1013,10 +1036,10 @@ class WebController extends BaseController
     {
         $builder = db_connect()
             ->table('subscription_renewal_histories')
-            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type')
+            ->select('subscription_renewal_histories.*, subscriptions.workspace_name, subscriptions.personal_workspace_name, subscriptions.subscription_type, subscriptions.pro_account_type, subscriptions.account_type')
             ->join('subscriptions', 'subscriptions.id = subscription_renewal_histories.subscription_id')
             ->where('subscriptions.account_id', $accountId)
-            ->where('subscriptions.account_type', 'pro');
+            ->whereIn('subscriptions.account_type', ['pro', 'plus']);
 
         $totalItems = (int) (clone $builder)->countAllResults();
         $pagination = $this->buildPaginationMeta($totalItems, $page, $perPage);
@@ -1200,7 +1223,7 @@ class WebController extends BaseController
                 continue;
             }
 
-            if ($usageType === '5h' && $accountType === 'pro') {
+            if ($usageType === '5h' && SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
                 if (! isset($fiveHourSeries[$accountId])) {
                     $fiveHourSeries[$accountId] = [
                         'label' => $label,
@@ -1269,7 +1292,7 @@ class WebController extends BaseController
             $workspaceName = trim((string) ($row['workspace_name'] ?? ''));
             $subscriptionType = trim((string) ($row['subscription_type'] ?? 'Subscription'));
             $label = $workspaceName !== '' ? ($subscriptionType . ' · ' . $workspaceName) : $subscriptionType;
-            if ($accountType !== 'pro') {
+            if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
                 $label .= ' · Free';
             }
 
@@ -1294,7 +1317,7 @@ class WebController extends BaseController
                 continue;
             }
 
-            if ($usageType === '5h' && $accountType === 'pro') {
+            if ($usageType === '5h' && SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
                 if (! isset($fiveHourSeries[$subscriptionId])) {
                     $fiveHourSeries[$subscriptionId] = [
                         'label' => $label,

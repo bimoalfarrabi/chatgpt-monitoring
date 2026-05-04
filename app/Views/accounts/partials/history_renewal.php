@@ -17,8 +17,8 @@ $paginationButtonClass = 'inline-flex items-center justify-center gap-1.5 rounde
     <table class="data-table-cards">
         <thead>
         <tr>
-            <th>Workspace Seller (Pro)</th>
-            <th>Workspace Personal (Free)</th>
+            <th>Workspace Invite (Pro)</th>
+            <th>Workspace Personal (Pro Invite/Plus)</th>
             <th>Tipe Subscription</th>
             <th>Expired Lama</th>
             <th>Expired Baru</th>
@@ -33,9 +33,13 @@ $paginationButtonClass = 'inline-flex items-center justify-center gap-1.5 rounde
         <?php endif; ?>
 
         <?php foreach ($renewalHistory as $row): ?>
+            <?php
+            $historyAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free'));
+            $showPersonalWorkspace = $historyAccountType === 'plus' || ((string) ($row['pro_account_type'] ?? '')) === 'personal_invite';
+            ?>
             <tr>
-                <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
-                <td><?= esc(((string) ($row['pro_account_type'] ?? '')) === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
+                <td><?= esc($historyAccountType === 'plus' ? '-' : ((string) ($row['workspace_name'] ?? '-'))) ?></td>
+                <td><?= esc($showPersonalWorkspace ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
                 <td><?= esc((string) ($row['subscription_type'] ?? '-')) ?></td>
                 <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['old_expired_at'] ?? '-')) ?></td>
                 <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc((string) ($row['new_expired_at'] ?? '-')) ?></td>

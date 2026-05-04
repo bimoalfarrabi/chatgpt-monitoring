@@ -139,24 +139,27 @@ class AccountsController extends BaseApiController
     private function normalizeSubscription(array $subscription): array
     {
         $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
-        $proAccountType = SubscriptionStatusService::normalizeProAccountType($subscription['pro_account_type'] ?? null);
+        $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $subscription['pro_account_type'] ?? null);
         $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
         $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
         $subscribedAt = $subscription['subscribed_at'] ?? null;
 
-        if ($accountType !== 'pro') {
+        if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
             $subscribedAt = null;
             $isOneMonthDuration = false;
             $isWorkspaceDeactivated = false;
             $proAccountType = null;
             $personalWorkspaceName = null;
+        } elseif ($accountType === 'plus' && $personalWorkspaceName === null) {
+            $personalWorkspaceName = trim((string) ($subscription['workspace_name'] ?? ''));
+            $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         } elseif ($proAccountType !== 'personal_invite') {
             $personalWorkspaceName = null;
         }
 
-        $expiredAt = $accountType === 'pro'
+        $expiredAt = SubscriptionStatusService::isWorkspaceAccountType($accountType)
             ? SubscriptionStatusService::calculateExpiredAt($subscribedAt, $isOneMonthDuration)
             : null;
 

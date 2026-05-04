@@ -18,6 +18,8 @@ $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md b
 
 $oldAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) old('account_type', 'free'));
 $oldProAccountType = \App\Services\SubscriptionStatusService::normalizeProAccountType((string) old('pro_account_type', ''));
+$oldIsWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($oldAccountType);
+$oldShowsPersonalWorkspace = $oldAccountType === 'plus' || ($oldAccountType === 'pro' && $oldProAccountType === 'personal_invite');
 $createFormExpanded = old('account_name') !== null
     || old('email') !== null
     || old('store_source') !== null
@@ -26,7 +28,7 @@ $createFormExpanded = old('account_name') !== null
 
 <section class="space-y-2">
     <h1>Daftar Akun</h1>
-    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Kelola data akun beserta detail paket free/pro, informasi workspace, dan monitoring usage sesuai jenis akun.</p>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Kelola data akun beserta detail paket free/pro/plus, informasi workspace, dan monitoring usage sesuai jenis akun.</p>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
@@ -44,7 +46,7 @@ $createFormExpanded = old('account_name') !== null
     </div>
 
     <div id="create-account-panel" data-create-account-panel class="space-y-2 <?= $createFormExpanded ? '' : 'hidden' ?>">
-        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free dibuat tanpa form subscription manual, lalu sistem otomatis menyiapkan tracking weekly. Subscription workspace tetap khusus akun pro.</p>
+        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Akun free dibuat tanpa form subscription manual, lalu sistem otomatis menyiapkan tracking weekly. Subscription workspace khusus akun pro/plus.</p>
 
         <form method="post" action="/accounts/create" class="space-y-3 rounded-md border border-[rgba(38,37,30,0.12)] bg-surface300 p-3">
             <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
@@ -69,45 +71,46 @@ $createFormExpanded = old('account_name') !== null
                     <select class="<?= $inputClass ?>" name="account_type" required data-account-type-select>
                         <option value="free" <?= $oldAccountType === 'free' ? 'selected' : '' ?>>Free</option>
                         <option value="pro" <?= $oldAccountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
+                        <option value="plus" <?= $oldAccountType === 'plus' ? 'selected' : '' ?>>Plus (Seller)</option>
                     </select>
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Sumber Store
                     <input class="<?= $inputClass ?>" type="text" name="store_source" data-pro-required value="<?= esc(old('store_source', '')) ?>">
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Tipe Subscription
                     <input class="<?= $inputClass ?>" type="text" name="subscription_type" data-pro-required value="<?= esc(old('subscription_type', '')) ?>">
                 </label>
 
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-invite-only>
                     Jenis Akun Pro
-                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-required>
+                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-invite-required>
                         <option value="">Pilih jenis akun pro</option>
                         <option value="personal_invite" <?= old('pro_account_type') === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
                         <option value="seller_account" <?= old('pro_account_type') === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
                     </select>
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
-                    Nama Workspace
-                    <input class="<?= $inputClass ?>" type="text" name="workspace_name" data-pro-required value="<?= esc(old('workspace_name', '')) ?>">
+                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-invite-only>
+                    Nama Workspace Invite
+                    <input class="<?= $inputClass ?>" type="text" name="workspace_name" data-pro-invite-required value="<?= esc(old('workspace_name', '')) ?>">
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' && $oldProAccountType === 'personal_invite' ? '' : 'hidden' ?>" data-personal-invite-only>
-                    Workspace Personal (Free Weekly)
+                <label class="<?= $labelClass ?> <?= $oldShowsPersonalWorkspace ? '' : 'hidden' ?>" data-personal-invite-only>
+                    Workspace Personal
                     <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" data-personal-invite-required value="<?= esc(old('personal_workspace_name', '')) ?>">
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Status Workspace
                     <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required>
                         <option value="0" <?= old('is_workspace_deactivated', '0') === '0' ? 'selected' : '' ?>>Aktif</option>
                         <option value="1" <?= old('is_workspace_deactivated') === '1' ? 'selected' : '' ?>>Deactivated</option>
                     </select>
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Tanggal Langganan
                     <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" data-pro-required value="<?= esc(old('subscribed_at', '')) ?>">
                 </label>
-                <label class="<?= $labelClass ?> <?= $oldAccountType === 'pro' ? '' : 'hidden' ?>" data-pro-only>
+                <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Durasi Satu Bulan?
                     <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required>
                         <option value="1" <?= old('is_one_month_duration', '1') === '1' ? 'selected' : '' ?>>Ya</option>
@@ -135,9 +138,9 @@ $createFormExpanded = old('account_name') !== null
                 <th>Nama</th>
                 <th>Email</th>
                 <th>Jenis Akun</th>
-                <th>Jenis Akun Pro</th>
-                <th>Workspace Seller (Pro)</th>
-                <th>Workspace Personal (Free)</th>
+                <th>Jenis Akun Workspace</th>
+                <th>Workspace Invite (Pro)</th>
+                <th>Workspace Personal (Pro Invite/Plus)</th>
                 <th>Status Workspace</th>
                 <th>Sumber Store</th>
                 <th>Tipe Subscription</th>
@@ -182,22 +185,30 @@ $createFormExpanded = old('account_name') !== null
                         <?php
                         $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active'];
                         $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
-                        $isPro = $accountType === 'pro';
+                        $isWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($accountType);
                         $proType = (string) ($subscription['pro_account_type'] ?? '');
-                        $proTypeLabel = $proType === 'personal_invite'
-                            ? 'Invite Pribadi'
-                            : ($proType === 'seller_account' ? 'Akun Seller' : '-');
+                        $proTypeLabel = '-';
+                        if ($isWorkspace) {
+                            if ($accountType === 'plus') {
+                                $proTypeLabel = 'Akun Seller (Personal)';
+                            } elseif ($proType === 'personal_invite') {
+                                $proTypeLabel = 'Invite Pribadi';
+                            } elseif ($proType === 'seller_account') {
+                                $proTypeLabel = 'Akun Seller';
+                            }
+                        }
                         $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
+                        $showPersonalWorkspace = $accountType === 'plus' || $proType === 'personal_invite';
                         ?>
                         <tr>
                             <td><?= esc($account['account_name']) ?></td>
                             <td><?= esc($account['email']) ?></td>
                             <td><?= esc(strtoupper($accountType)) ?></td>
-                            <td><?= esc($isPro ? $proTypeLabel : '-') ?></td>
-                            <td><?= esc($isPro ? ((string) ($subscription['workspace_name'] ?? '-')) : '-') ?></td>
-                            <td><?= esc($isPro && $proType === 'personal_invite' ? ($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') : '-') ?></td>
+                            <td><?= esc($isWorkspace ? $proTypeLabel : '-') ?></td>
+                            <td><?= esc($isWorkspace && $accountType === 'pro' ? ((string) ($subscription['workspace_name'] ?? '-')) : '-') ?></td>
+                            <td><?= esc($showPersonalWorkspace ? ($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') : '-') ?></td>
                             <td>
-                                <?php if ($isPro): ?>
+                                <?php if ($isWorkspace): ?>
                                     <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?>
                                 <?php else: ?>
                                     -
@@ -205,12 +216,12 @@ $createFormExpanded = old('account_name') !== null
                             </td>
                             <td><?= esc($subscription['store_source']) ?></td>
                             <td><?= esc($subscription['subscription_type']) ?></td>
-                            <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($isPro ? ((string) ($subscription['subscribed_at'] ?? '-')) : '-') ?></td>
-                            <td><?= esc($isPro ? (((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'Ya' : 'Tidak') : '-') ?></td>
+                            <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($isWorkspace ? ((string) ($subscription['subscribed_at'] ?? '-')) : '-') ?></td>
+                            <td><?= esc($isWorkspace ? (((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'Ya' : 'Tidak') : '-') ?></td>
                             <td class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]"><?= esc($subscription['expired_at'] ?? '-') ?></td>
                             <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) $subscription['status'])) ?></span></td>
                             <td>
-                                <?php if (! $isPro): ?>
+                                <?php if (! $isWorkspace): ?>
                                     <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
                                 <?php else: ?>
                                     <?php $p5 = (int) ($subscription['usages']['5h']['remaining_percent'] ?? 0); ?>
@@ -222,12 +233,12 @@ $createFormExpanded = old('account_name') !== null
                             <td>
                                 <?php $pwSeller = (int) ($subscription['usages']['weekly']['remaining_percent'] ?? 0); ?>
                                 <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                                <?php $weeklyLabelPrimary = ($isPro && $proType === 'personal_invite') ? 'Seller' : 'Weekly'; ?>
+                                <?php $weeklyLabelPrimary = $accountType === 'plus' ? 'Personal' : (($isWorkspace && $proType === 'personal_invite') ? 'Seller' : 'Weekly'); ?>
                                 <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($weeklyLabelPrimary) ?></div>
                                 <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
                                 <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
 
-                                <?php if ($isPro && $proType === 'personal_invite'): ?>
+                                <?php if ($isWorkspace && $proType === 'personal_invite'): ?>
                                     <?php $pwPersonal = (int) ($subscription['usages']['weekly_personal']['remaining_percent'] ?? 0); ?>
                                     <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
                                     <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
@@ -275,28 +286,51 @@ $createFormExpanded = old('account_name') !== null
 
     const proBlocks = Array.from(document.querySelectorAll('[data-pro-only]'));
     const proRequiredFields = Array.from(document.querySelectorAll('[data-pro-required]'));
+    const proInviteBlocks = Array.from(document.querySelectorAll('[data-pro-invite-only]'));
+    const proInviteRequiredFields = Array.from(document.querySelectorAll('[data-pro-invite-required]'));
     const personalInviteBlocks = Array.from(document.querySelectorAll('[data-personal-invite-only]'));
     const personalInviteRequiredFields = Array.from(document.querySelectorAll('[data-personal-invite-required]'));
 
     const syncVisibility = () => {
-        const isPro = accountTypeSelect.value === 'pro';
-        const isPersonalInvite = isPro && (proTypeSelect?.value === 'personal_invite');
+        const accountType = accountTypeSelect.value;
+        const isWorkspace = accountType === 'pro' || accountType === 'plus';
+        const isInviteBasedPro = accountType === 'pro';
+        const isPersonalWorkspace = accountType === 'plus' || (isInviteBasedPro && (proTypeSelect?.value === 'personal_invite'));
+
+        if (proTypeSelect && !isInviteBasedPro) {
+            proTypeSelect.value = isWorkspace ? 'seller_account' : '';
+        }
+
+        const isPersonalInvite = isPersonalWorkspace;
 
         proBlocks.forEach((element) => {
-            element.classList.toggle('hidden', !isPro);
+            element.classList.toggle('hidden', !isWorkspace);
         });
 
         proRequiredFields.forEach((field) => {
-            field.required = isPro;
-            field.disabled = !isPro;
+            field.required = isWorkspace;
+            field.disabled = !isWorkspace;
 
-            if (!isPro) {
+            if (!isWorkspace) {
                 if (field.name === 'is_workspace_deactivated') {
                     field.value = '0';
                 }
                 if (field.name === 'is_one_month_duration') {
                     field.value = '1';
                 }
+            }
+        });
+
+        proInviteBlocks.forEach((element) => {
+            element.classList.toggle('hidden', !isInviteBasedPro);
+        });
+
+        proInviteRequiredFields.forEach((field) => {
+            field.required = isInviteBasedPro;
+            field.disabled = !isInviteBasedPro;
+
+            if (!isInviteBasedPro) {
+                field.value = isWorkspace ? 'seller_account' : '';
             }
         });
 

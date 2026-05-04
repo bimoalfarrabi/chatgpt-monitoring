@@ -59,7 +59,7 @@ class SubscriptionStatusService
     public static function usageTypes(string $accountType, ?string $proAccountType = null): array
     {
         $normalizedAccountType = self::normalizeAccountType($accountType);
-        if ($normalizedAccountType !== 'pro') {
+        if (! self::isWorkspaceAccountType($normalizedAccountType)) {
             return ['weekly'];
         }
 
@@ -73,7 +73,33 @@ class SubscriptionStatusService
     public static function normalizeAccountType(?string $accountType): string
     {
         $value = strtolower(trim((string) $accountType));
-        return $value === 'pro' ? 'pro' : 'free';
+        return in_array($value, ['free', 'pro', 'plus'], true) ? $value : 'free';
+    }
+
+    public static function isWorkspaceAccountType(?string $accountType): bool
+    {
+        $normalized = self::normalizeAccountType($accountType);
+
+        return in_array($normalized, ['pro', 'plus'], true);
+    }
+
+    public static function requiresInviteType(?string $accountType): bool
+    {
+        return self::normalizeAccountType($accountType) === 'pro';
+    }
+
+    public static function resolveProAccountTypeForAccount(?string $accountType, ?string $proAccountType): ?string
+    {
+        $normalizedAccountType = self::normalizeAccountType($accountType);
+        if (! self::isWorkspaceAccountType($normalizedAccountType)) {
+            return null;
+        }
+
+        if ($normalizedAccountType === 'plus') {
+            return 'seller_account';
+        }
+
+        return self::normalizeProAccountType($proAccountType);
     }
 
     public static function normalizeProAccountType(?string $proAccountType): ?string

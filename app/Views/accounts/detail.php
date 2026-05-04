@@ -25,7 +25,7 @@ $chartDateDefault = date('Y-m-d');
 
 <section class="space-y-2">
     <h1>Detail Akun</h1>
-    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Ringkasan identitas akun, konfigurasi free/pro untuk setiap subscription, status workspace, serta histori perubahan usage.</p>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Ringkasan identitas akun, konfigurasi free/pro/plus untuk setiap subscription, status workspace, serta histori perubahan usage.</p>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-3">
@@ -122,20 +122,26 @@ $chartDateDefault = date('Y-m-d');
         'weekly_personal' => 'border-[color-mix(in_srgb,#8fb8aa_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#8fb8aa_16%,#ebeae5_84%)]',
     ];
     $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
+    $isWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($accountType);
     $isPro = $accountType === 'pro';
     $proType = (string) ($subscription['pro_account_type'] ?? '');
     $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
-    $proTypeLabel = $proType === 'personal_invite'
-        ? 'Invite Akun Pribadi'
-        : ($proType === 'seller_account' ? 'Akun dari Seller' : '-');
-    $usageLabels = $isPro
+    $showPersonalWorkspace = $accountType === 'plus' || $proType === 'personal_invite';
+    $proTypeLabel = $accountType === 'plus'
+        ? 'Akun dari Seller (Personal)'
+        : ($proType === 'personal_invite'
+            ? 'Invite Akun Pribadi'
+            : ($proType === 'seller_account' ? 'Akun dari Seller' : '-'));
+    $usageLabels = $isWorkspace
         ? ($proType === 'personal_invite'
             ? [
                 '5h' => 'Usage 5 Jam (Workspace Seller)',
                 'weekly' => 'Usage Mingguan (Workspace Seller)',
                 'weekly_personal' => 'Usage Mingguan (Personal Free)',
             ]
-            : ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan'])
+            : ($accountType === 'plus'
+                ? ['5h' => 'Usage 5 Jam (Personal)', 'weekly' => 'Usage Mingguan (Personal)']
+                : ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan']))
         : ['weekly' => 'Usage Mingguan'];
     $formId = (int) $subscription['id'];
     ?>
@@ -152,7 +158,7 @@ $chartDateDefault = date('Y-m-d');
             </div>
         </div>
 
-        <?php if ($isPro): ?>
+        <?php if ($isWorkspace): ?>
             <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/update" class="space-y-3">
                 <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
                     <label class="<?= $labelClass ?>">
@@ -166,38 +172,39 @@ $chartDateDefault = date('Y-m-d');
                     <label class="<?= $labelClass ?>">
                         Jenis Akun ChatGPT
                         <select class="<?= $inputClass ?>" name="account_type" required data-subscription-type-select="<?= esc((string) $formId) ?>">
-                            <option value="pro" selected>Pro (Workspace)</option>
+                            <option value="pro" <?= $accountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
+                            <option value="plus" <?= $accountType === 'plus' ? 'selected' : '' ?>>Plus (Seller)</option>
                         </select>
                     </label>
 
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
                         Jenis Akun Pro
-                        <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-type-select="<?= esc((string) $formId) ?>" data-pro-required="<?= esc((string) $formId) ?>">
+                        <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-type-select="<?= esc((string) $formId) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
                             <option value="">Pilih jenis akun pro</option>
                             <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
                             <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
                         </select>
                     </label>
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
-                        Nama Workspace
-                        <input class="<?= $inputClass ?>" type="text" name="workspace_name" value="<?= esc((string) ($subscription['workspace_name'] ?? '')) ?>" data-pro-required="<?= esc((string) $formId) ?>">
+                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
+                        Nama Workspace Invite
+                        <input class="<?= $inputClass ?>" type="text" name="workspace_name" value="<?= esc((string) ($subscription['workspace_name'] ?? '')) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
                     </label>
-                    <label class="<?= $labelClass ?> <?= $isPro && $proType === 'personal_invite' ? '' : 'hidden' ?>" data-personal-invite-only="<?= esc((string) $formId) ?>">
-                        Workspace Personal (Free Weekly)
+                    <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-personal-invite-only="<?= esc((string) $formId) ?>">
+                        Workspace Personal
                         <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-personal-invite-required="<?= esc((string) $formId) ?>">
                     </label>
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                         Status Workspace
                         <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required="<?= esc((string) $formId) ?>">
                             <option value="0" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0 ? 'selected' : '' ?>>Aktif</option>
                             <option value="1" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'selected' : '' ?>>Deactivated</option>
                         </select>
                     </label>
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                         Tanggal Langganan
                         <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" value="<?= esc(isset($subscription['subscribed_at']) && $subscription['subscribed_at'] ? date('Y-m-d\\TH:i', strtotime((string) $subscription['subscribed_at'])) : '') ?>" data-pro-required="<?= esc((string) $formId) ?>">
                     </label>
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                         Durasi Satu Bulan?
                         <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required="<?= esc((string) $formId) ?>">
                             <option value="1" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'selected' : '' ?>>Ya</option>
@@ -206,23 +213,23 @@ $chartDateDefault = date('Y-m-d');
                     </label>
                 </div>
                 <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                    Jenis akun pro saat ini: <?= esc($isPro ? $proTypeLabel : '-') ?>
+                    Jenis akun workspace saat ini: <?= esc($isWorkspace ? $proTypeLabel : '-') ?>
                 </div>
-                <?php if ($isPro && $proType === 'personal_invite'): ?>
+                <?php if ($showPersonalWorkspace): ?>
                     <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                        Workspace personal free: <?= esc($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') ?>
+                        Workspace personal: <?= esc($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') ?>
                     </div>
                 <?php endif; ?>
                 <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
             </form>
 
-            <?php if ($isPro && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
+            <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
                 <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
                     <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
                 </form>
             <?php endif; ?>
 
-            <?php if ($isPro && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
+            <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
                 <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
                     <h4 class="text-[20px]">Buat Workspace Baru</h4>
                     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
@@ -239,20 +246,20 @@ $chartDateDefault = date('Y-m-d');
                                 Tipe Subscription
                                 <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
                             </label>
-                            <label class="<?= $labelClass ?>">
+                            <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
                                 Jenis Akun Pro
-                                <select class="<?= $inputClass ?>" name="pro_account_type" required data-workspace-create-pro-select>
+                                <select class="<?= $inputClass ?>" name="pro_account_type" <?= $isPro ? 'required' : '' ?> data-workspace-create-pro-select data-workspace-create-pro-invite-required>
                                     <option value="">Pilih jenis akun pro</option>
                                     <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
                                     <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
                                 </select>
                             </label>
-                            <label class="<?= $labelClass ?>">
-                                Nama Workspace Baru
-                                <input class="<?= $inputClass ?>" type="text" name="workspace_name" required value="">
+                            <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
+                                Nama Workspace Invite Baru
+                                <input class="<?= $inputClass ?>" type="text" name="workspace_name" <?= $isPro ? 'required' : '' ?> value="" data-workspace-create-pro-invite-required>
                             </label>
-                            <label class="<?= $labelClass ?> <?= $proType === 'personal_invite' ? '' : 'hidden' ?>" data-workspace-create-personal-wrapper>
-                                Workspace Personal (Free Weekly)
+                            <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-workspace-create-personal-wrapper>
+                                Workspace Personal
                                 <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-workspace-create-personal-input>
                             </label>
                             <label class="<?= $labelClass ?>">
@@ -650,29 +657,50 @@ $chartDateDefault = date('Y-m-d');
     const selectors = Array.from(document.querySelectorAll('[data-subscription-type-select]'));
 
     const syncSubscriptionForm = (formId, currentValue) => {
+        const isWorkspace = currentValue === 'pro' || currentValue === 'plus';
         const isPro = currentValue === 'pro';
         const blocks = Array.from(document.querySelectorAll(`[data-pro-only="${formId}"]`));
         const requiredFields = Array.from(document.querySelectorAll(`[data-pro-required="${formId}"]`));
+        const proInviteBlocks = Array.from(document.querySelectorAll(`[data-pro-invite-only="${formId}"]`));
+        const proInviteRequiredFields = Array.from(document.querySelectorAll(`[data-pro-invite-required="${formId}"]`));
         const personalInviteBlocks = Array.from(document.querySelectorAll(`[data-personal-invite-only="${formId}"]`));
         const personalInviteRequiredFields = Array.from(document.querySelectorAll(`[data-personal-invite-required="${formId}"]`));
         const proTypeSelect = document.querySelector(`[data-pro-type-select="${formId}"]`);
-        const isPersonalInvite = isPro && proTypeSelect?.value === 'personal_invite';
+
+        if (proTypeSelect && !isPro) {
+            proTypeSelect.value = isWorkspace ? 'seller_account' : '';
+        }
+
+        const isPersonalInvite = currentValue === 'plus' || (isPro && proTypeSelect?.value === 'personal_invite');
 
         blocks.forEach((element) => {
-            element.classList.toggle('hidden', !isPro);
+            element.classList.toggle('hidden', !isWorkspace);
         });
 
         requiredFields.forEach((field) => {
-            field.required = isPro;
-            field.disabled = !isPro;
+            field.required = isWorkspace;
+            field.disabled = !isWorkspace;
 
-            if (!isPro) {
+            if (!isWorkspace) {
                 if (field.name === 'is_workspace_deactivated') {
                     field.value = '0';
                 }
                 if (field.name === 'is_one_month_duration') {
                     field.value = '1';
                 }
+            }
+        });
+
+        proInviteBlocks.forEach((element) => {
+            element.classList.toggle('hidden', !isPro);
+        });
+
+        proInviteRequiredFields.forEach((field) => {
+            field.required = isPro;
+            field.disabled = !isPro;
+
+            if (!isPro) {
+                field.value = isWorkspace ? 'seller_account' : '';
             }
         });
 
@@ -708,7 +736,10 @@ $chartDateDefault = date('Y-m-d');
 
     const workspaceCreateForms = Array.from(document.querySelectorAll('[data-workspace-create-form]'));
     workspaceCreateForms.forEach((form) => {
+        const accountTypeInput = form.closest('section')?.querySelector('[data-subscription-type-select]');
         const proTypeSelect = form.querySelector('[data-workspace-create-pro-select]');
+        const proInviteBlocks = Array.from(form.querySelectorAll('[data-workspace-create-pro-invite-only]'));
+        const proInviteRequiredFields = Array.from(form.querySelectorAll('[data-workspace-create-pro-invite-required]'));
         const personalWrapper = form.querySelector('[data-workspace-create-personal-wrapper]');
         const personalInput = form.querySelector('[data-workspace-create-personal-input]');
 
@@ -717,7 +748,26 @@ $chartDateDefault = date('Y-m-d');
         }
 
         const syncWorkspaceCreateForm = () => {
-            const isPersonalInvite = proTypeSelect.value === 'personal_invite';
+            const isPro = (accountTypeInput?.value || 'pro') === 'pro';
+            if (!isPro) {
+                proTypeSelect.value = 'seller_account';
+            }
+
+            proInviteBlocks.forEach((element) => {
+                element.classList.toggle('hidden', !isPro);
+            });
+
+            proInviteRequiredFields.forEach((field) => {
+                field.required = isPro;
+                field.disabled = !isPro;
+
+                if (!isPro) {
+                    field.value = 'seller_account';
+                }
+            });
+
+            const accountType = accountTypeInput?.value || 'pro';
+            const isPersonalInvite = accountType === 'plus' || proTypeSelect.value === 'personal_invite';
 
             personalWrapper.classList.toggle('hidden', !isPersonalInvite);
             personalInput.required = isPersonalInvite;
@@ -728,6 +778,7 @@ $chartDateDefault = date('Y-m-d');
             }
         };
 
+        accountTypeInput?.addEventListener('change', syncWorkspaceCreateForm);
         proTypeSelect.addEventListener('change', syncWorkspaceCreateForm);
         syncWorkspaceCreateForm();
     });

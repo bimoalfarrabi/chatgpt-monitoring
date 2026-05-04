@@ -23,9 +23,9 @@ $paginationButtonClass = 'inline-flex items-center justify-center gap-1.5 rounde
     <table class="data-table-cards">
         <thead>
         <tr>
-            <th>Workspace Seller (Pro)</th>
-            <th>Workspace Personal (Free)</th>
-            <th>Jenis Akun Pro</th>
+            <th>Workspace Invite (Pro)</th>
+            <th>Workspace Personal (Pro Invite/Plus)</th>
+            <th>Jenis Akun Workspace</th>
             <th>Status Workspace</th>
             <th>Status Lifecycle</th>
             <th>Tanggal Langganan</th>
@@ -43,14 +43,18 @@ $paginationButtonClass = 'inline-flex items-center justify-center gap-1.5 rounde
         <?php foreach ($workspaceHistory as $row): ?>
             <?php
             $historyStatusClass = $statusClasses[$row['status']] ?? $statusClasses['active'];
+            $historyAccountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free'));
             $historyProType = (string) ($row['pro_account_type'] ?? '');
-            $historyProTypeLabel = $historyProType === 'personal_invite'
-                ? 'Invite Akun Pribadi'
-                : ($historyProType === 'seller_account' ? 'Akun dari Seller' : '-');
+            $historyProTypeLabel = $historyAccountType === 'plus'
+                ? 'Akun Seller (Personal)'
+                : ($historyProType === 'personal_invite'
+                    ? 'Invite Akun Pribadi'
+                    : ($historyProType === 'seller_account' ? 'Akun dari Seller' : '-'));
+            $showPersonalWorkspace = $historyAccountType === 'plus' || $historyProType === 'personal_invite';
             ?>
             <tr>
-                <td><?= esc((string) ($row['workspace_name'] ?? '-')) ?></td>
-                <td><?= esc($historyProType === 'personal_invite' ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
+                <td><?= esc($historyAccountType === 'plus' ? '-' : ((string) ($row['workspace_name'] ?? '-'))) ?></td>
+                <td><?= esc($showPersonalWorkspace ? ((string) ($row['personal_workspace_name'] ?? '-')) : '-') ?></td>
                 <td><?= esc($historyProTypeLabel) ?></td>
                 <td><?= ((int) ($row['is_workspace_deactivated'] ?? 0)) === 1 ? 'Deactivated' : 'Aktif' ?></td>
                 <td><span class="<?= $historyStatusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($row['status'] ?? 'active'))) ?></span></td>
