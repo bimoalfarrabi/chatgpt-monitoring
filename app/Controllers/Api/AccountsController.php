@@ -142,7 +142,10 @@ class AccountsController extends BaseApiController
         $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $subscription['pro_account_type'] ?? null);
         $personalWorkspaceName = trim((string) ($subscription['personal_workspace_name'] ?? ''));
         $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
-        $isOneMonthDuration = SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null);
+        $isOneMonthDuration = SubscriptionStatusService::resolveOneMonthDurationForAccount(
+            $accountType,
+            SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null)
+        );
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
         $subscribedAt = $subscription['subscribed_at'] ?? null;
 

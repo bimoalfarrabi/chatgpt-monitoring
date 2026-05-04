@@ -218,7 +218,10 @@ class SubscriptionsController extends BaseApiController
         $personalWorkspaceName = trim((string) ($row['personal_workspace_name'] ?? ''));
         $personalWorkspaceName = $personalWorkspaceName === '' ? null : $personalWorkspaceName;
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($row['is_workspace_deactivated'] ?? null, false);
-        $isOneMonthDuration = SubscriptionStatusService::parseBoolean($row['is_one_month_duration'] ?? null, false);
+        $isOneMonthDuration = SubscriptionStatusService::resolveOneMonthDurationForAccount(
+            $accountType,
+            SubscriptionStatusService::parseBoolean($row['is_one_month_duration'] ?? null, false)
+        );
         $subscribedAt = $this->normalizeDateTimeInput($row['subscribed_at'] ?? null);
 
         if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
@@ -343,7 +346,10 @@ class SubscriptionsController extends BaseApiController
 
         $proAccountType = SubscriptionStatusService::resolveProAccountTypeForAccount($accountType, $data['pro_account_type'] ?? null);
         $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($data['is_workspace_deactivated'] ?? null, false);
-        $isOneMonthDuration = SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false);
+        $isOneMonthDuration = SubscriptionStatusService::resolveOneMonthDurationForAccount(
+            $accountType,
+            SubscriptionStatusService::parseBoolean($data['is_one_month_duration'] ?? null, false)
+        );
         $subscribedAt = $this->normalizeDateTimeInput($data['subscribed_at'] ?? null);
 
         if (SubscriptionStatusService::requiresInviteType($accountType) && $proAccountType === null) {

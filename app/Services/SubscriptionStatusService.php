@@ -102,6 +102,15 @@ class SubscriptionStatusService
         return self::normalizeProAccountType($proAccountType);
     }
 
+    public static function resolveOneMonthDurationForAccount(?string $accountType, bool $isOneMonthDuration): bool
+    {
+        if (self::normalizeAccountType($accountType) === 'plus') {
+            return true;
+        }
+
+        return $isOneMonthDuration;
+    }
+
     public static function normalizeProAccountType(?string $proAccountType): ?string
     {
         $value = strtolower(trim((string) $proAccountType));

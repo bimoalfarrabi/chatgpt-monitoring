@@ -219,7 +219,7 @@ $chartDateDefault = date('Y-m-d');
                     </label>
                     <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
                         Durasi Satu Bulan?
-                        <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required="<?= esc((string) $formId) ?>">
+                        <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required="<?= esc((string) $formId) ?>" data-one-month-select="<?= esc((string) $formId) ?>">
                             <option value="1" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'selected' : '' ?>>Ya</option>
                             <option value="0" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 0 ? 'selected' : '' ?>>Tidak</option>
                         </select>
@@ -281,7 +281,7 @@ $chartDateDefault = date('Y-m-d');
                             </label>
                             <label class="<?= $labelClass ?>">
                                 Durasi Satu Bulan?
-                                <select class="<?= $inputClass ?>" name="is_one_month_duration">
+                                <select class="<?= $inputClass ?>" name="is_one_month_duration" data-workspace-create-one-month-select>
                                     <option value="1" selected>Ya</option>
                                     <option value="0">Tidak</option>
                                 </select>
@@ -683,6 +683,7 @@ $chartDateDefault = date('Y-m-d');
         const personalInviteBlocks = Array.from(document.querySelectorAll(`[data-personal-invite-only="${formId}"]`));
         const personalInviteRequiredFields = Array.from(document.querySelectorAll(`[data-personal-invite-required="${formId}"]`));
         const proTypeSelect = document.querySelector(`[data-pro-type-select="${formId}"]`);
+        const oneMonthSelect = document.querySelector(`[data-one-month-select="${formId}"]`);
 
         if (proTypeSelect && !isPro) {
             proTypeSelect.value = isWorkspace ? 'seller_account' : '';
@@ -707,6 +708,14 @@ $chartDateDefault = date('Y-m-d');
                 }
             }
         });
+
+        if (oneMonthSelect) {
+            const forceOneMonth = currentValue === 'plus';
+            if (forceOneMonth) {
+                oneMonthSelect.value = '1';
+            }
+            oneMonthSelect.disabled = !isWorkspace || forceOneMonth;
+        }
 
         proInviteBlocks.forEach((element) => {
             element.classList.toggle('hidden', !isPro);
@@ -759,6 +768,7 @@ $chartDateDefault = date('Y-m-d');
         const proInviteRequiredFields = Array.from(form.querySelectorAll('[data-workspace-create-pro-invite-required]'));
         const personalWrapper = form.querySelector('[data-workspace-create-personal-wrapper]');
         const personalInput = form.querySelector('[data-workspace-create-personal-input]');
+        const oneMonthSelect = form.querySelector('[data-workspace-create-one-month-select]');
 
         if (!proTypeSelect || !personalWrapper || !personalInput) {
             return;
@@ -785,6 +795,14 @@ $chartDateDefault = date('Y-m-d');
 
             const accountType = accountTypeInput?.value || 'pro';
             const isPersonalInvite = accountType === 'plus' || proTypeSelect.value === 'personal_invite';
+
+            if (oneMonthSelect) {
+                const forceOneMonth = accountType === 'plus';
+                if (forceOneMonth) {
+                    oneMonthSelect.value = '1';
+                }
+                oneMonthSelect.disabled = forceOneMonth;
+            }
 
             personalWrapper.classList.toggle('hidden', !isPersonalInvite);
             personalInput.required = isPersonalInvite;

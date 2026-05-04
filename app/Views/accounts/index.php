@@ -117,7 +117,7 @@ $createFormExpanded = old('account_name') !== null
                 </label>
                 <label class="<?= $labelClass ?> <?= $oldIsWorkspace ? '' : 'hidden' ?>" data-pro-only>
                     Durasi Satu Bulan?
-                    <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required>
+                    <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required data-one-month-select>
                         <option value="1" <?= old('is_one_month_duration', '1') === '1' ? 'selected' : '' ?>>Ya</option>
                         <option value="0" <?= old('is_one_month_duration') === '0' ? 'selected' : '' ?>>Tidak</option>
                     </select>
@@ -329,6 +329,7 @@ $createFormExpanded = old('account_name') !== null
     const proInviteRequiredFields = Array.from(document.querySelectorAll('[data-pro-invite-required]'));
     const personalInviteBlocks = Array.from(document.querySelectorAll('[data-personal-invite-only]'));
     const personalInviteRequiredFields = Array.from(document.querySelectorAll('[data-personal-invite-required]'));
+    const oneMonthSelect = document.querySelector('[data-one-month-select]');
 
     const syncVisibility = () => {
         const accountType = accountTypeSelect.value;
@@ -359,6 +360,14 @@ $createFormExpanded = old('account_name') !== null
                 }
             }
         });
+
+        if (oneMonthSelect) {
+            const forceOneMonth = accountType === 'plus';
+            if (forceOneMonth) {
+                oneMonthSelect.value = '1';
+            }
+            oneMonthSelect.disabled = !isWorkspace || forceOneMonth;
+        }
 
         proInviteBlocks.forEach((element) => {
             element.classList.toggle('hidden', !isInviteBasedPro);

@@ -19,8 +19,9 @@ class SendSubscriptionReminders extends BaseCommand
     {
         $telegram = new TelegramService();
         $logs = new ReminderLogModel();
+        $subscriptionModel = new SubscriptionModel();
 
-        $subscriptions = (new SubscriptionModel())
+        $subscriptions = $subscriptionModel
             ->select('subscriptions.*, accounts.account_name, accounts.email')
             ->join('accounts', 'accounts.id = subscriptions.account_id')
             ->findAll();
@@ -29,10 +30,35 @@ class SendSubscriptionReminders extends BaseCommand
         $todayEnd = date('Y-m-d 23:59:59');
 
         foreach ($subscriptions as $subscription) {
-            $status = SubscriptionStatusService::resolveStatus(
-                $subscription['expired_at'] ?? null,
-                ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1
+            $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+            $isWorkspace = SubscriptionStatusService::isWorkspaceAccountType($accountType);
+            $isOneMonthDuration = SubscriptionStatusService::resolveOneMonthDurationForAccount(
+                $accountType,
+                SubscriptionStatusService::parseBoolean($subscription['is_one_month_duration'] ?? null, false)
             );
+            $expiredAt = $isWorkspace
+                ? SubscriptionStatusService::calculateExpiredAt($subscription['subscribed_at'] ?? null, $isOneMonthDuration)
+                : null;
+            $status = SubscriptionStatusService::resolveStatus(
+                $expiredAt,
+                SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null, false)
+            );
+
+            $subscriptionUpdate = [];
+            if (($subscription['expired_at'] ?? null) !== $expiredAt) {
+                $subscriptionUpdate['expired_at'] = $expiredAt;
+                $subscription['expired_at'] = $expiredAt;
+            }
+            if (($subscription['status'] ?? null) !== $status) {
+                $subscriptionUpdate['status'] = $status;
+            }
+            if ((int) ($subscription['is_one_month_duration'] ?? 0) !== ($isOneMonthDuration ? 1 : 0)) {
+                $subscriptionUpdate['is_one_month_duration'] = $isOneMonthDuration ? 1 : 0;
+            }
+            if ($subscriptionUpdate !== []) {
+                $subscriptionModel->update((int) ($subscription['id'] ?? 0), $subscriptionUpdate);
+            }
+
             if (! in_array($status, ['expiring_soon', 'expired', 'deactivated'], true)) {
                 continue;
             }
