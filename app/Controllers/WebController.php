@@ -566,6 +566,36 @@ class WebController extends BaseController
         return redirect()->to('/accounts/' . $id)->with('success', 'Nama account berhasil diperbarui.');
     }
 
+    public function updateAccountPassword(int $id): RedirectResponse
+    {
+        $account = $this->accounts->find($id);
+        if (! $account) {
+            return redirect()->back()->with('error', 'Account tidak ditemukan.');
+        }
+
+        $data = $this->request->getPost();
+        $data['password_hint'] = (string) ($data['password_hint'] ?? '');
+
+        $rules = [
+            'password_hint' => 'permit_empty|max_length[255]',
+        ];
+
+        if (! $this->validateData($data, $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $passwordHint = trim($data['password_hint']);
+        $this->accounts->update($id, [
+            'password_hint' => $passwordHint !== '' ? $passwordHint : null,
+        ]);
+
+        $successMessage = $passwordHint !== ''
+            ? 'Password akun berhasil diperbarui.'
+            : 'Password akun berhasil dikosongkan.';
+
+        return redirect()->to('/accounts/' . $id)->with('success', $successMessage);
+    }
+
     public function updateUsage(int $id): RedirectResponse
     {
         $usage = $this->usages->find($id);
