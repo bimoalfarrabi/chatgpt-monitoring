@@ -496,11 +496,17 @@ class WebController extends BaseController
             'store_source'      => 'required|max_length[100]',
             'subscription_type' => 'required|max_length[100]',
             'pro_account_type'  => 'permit_empty|in_list[personal_invite,seller_account]',
-            'workspace_name'    => 'required|max_length[120]',
+            'workspace_name'    => 'permit_empty|max_length[120]',
             'personal_workspace_name' => 'permit_empty|max_length[120]',
             'subscribed_at'     => 'required|valid_date[Y-m-d\\TH:i]',
             'is_one_month_duration' => 'permit_empty|in_list[0,1]',
         ];
+
+        if ($accountType === 'pro') {
+            $rules['workspace_name'] = 'required|max_length[120]';
+        } elseif ($accountType === 'plus') {
+            $rules['personal_workspace_name'] = 'required|max_length[120]';
+        }
 
         if (! $this->validateData($data, $rules)) {
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
@@ -529,6 +535,121 @@ class WebController extends BaseController
         return redirect()
             ->to('/accounts/' . (int) $sourceSubscription['account_id'])
             ->with('success', 'Workspace baru berhasil dibuat dari workspace yang deactivated.');
+    }
+
+    public function updatePlusAccountFromDeactivated(int $id): RedirectResponse
+    {
+        $sourceSubscription = $this->subscriptions->find($id);
+        if (! $sourceSubscription) {
+            return redirect()->back()->with('error', 'Subscription sumber tidak ditemukan.');
+        }
+
+        $accountType = SubscriptionStatusService::normalizeAccountType($sourceSubscription['account_type'] ?? null);
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($sourceSubscription['is_workspace_deactivated'] ?? null);
+        if ($accountType !== 'plus' || ! $isWorkspaceDeactivated) {
+            return redirect()->back()->with('error', 'Fitur ini hanya berlaku untuk akun plus yang deactivated.');
+        }
+
+        $accountId = (int) ($sourceSubscription['account_id'] ?? 0);
+        $account = $this->accounts->find($accountId);
+        if (! $account) {
+            return redirect()->back()->with('error', 'Account sumber tidak ditemukan.');
+        }
+
+        $data = $this->request->getPost();
+        $data['plus_account_name'] = trim((string) ($data['plus_account_name'] ?? ''));
+        $data['plus_email'] = strtolower(trim((string) ($data['plus_email'] ?? '')));
+        $data['plus_password_hint'] = (string) ($data['plus_password_hint'] ?? '');
+        $data['plus_notes'] = trim((string) ($data['plus_notes'] ?? ''));
+
+        $rules = [
+            'plus_account_name' => 'required|min_length[2]|max_length[120]',
+            'plus_email' => 'required|valid_email|max_length[160]',
+            'plus_password_hint' => 'permit_empty|max_length[255]',
+            'plus_notes' => 'permit_empty',
+            'plus_subscribed_at' => 'required|valid_date[Y-m-d\\TH:i]',
+        ];
+
+        if (! $this->validateData($data, $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $emailExists = $this->accounts
+            ->where('email', $data['plus_email'])
+            ->where('id !=', $accountId)
+            ->first();
+        if ($emailExists) {
+            return redirect()->back()->withInput()->with('error', 'Email akun plus sudah dipakai akun lain.');
+        }
+
+        $resolvedPersonalWorkspaceName = trim((string) ($sourceSubscription['personal_workspace_name'] ?? ''));
+        if ($resolvedPersonalWorkspaceName === '') {
+            $resolvedPersonalWorkspaceName = trim((string) ($sourceSubscription['workspace_name'] ?? ''));
+        }
+        if ($resolvedPersonalWorkspaceName === '') {
+            $resolvedPersonalWorkspaceName = $data['plus_account_name'] !== ''
+                ? $data['plus_account_name']
+                : trim((string) ($account['account_name'] ?? ''));
+        }
+        if ($resolvedPersonalWorkspaceName === '') {
+            $resolvedPersonalWorkspaceName = 'Personal Workspace';
+        }
+
+        $resolvedStoreSource = trim((string) ($sourceSubscription['store_source'] ?? ''));
+        if ($resolvedStoreSource === '') {
+            $resolvedStoreSource = 'seller_account';
+        }
+
+        $resolvedSubscriptionType = trim((string) ($sourceSubscription['subscription_type'] ?? ''));
+        if ($resolvedSubscriptionType === '') {
+            $resolvedSubscriptionType = 'Plus Monthly';
+        }
+
+        $subscriptionPayloadData = [
+            'account_type' => 'plus',
+            'pro_account_type' => 'seller_account',
+            'workspace_name' => $resolvedPersonalWorkspaceName,
+            'personal_workspace_name' => $resolvedPersonalWorkspaceName,
+            'is_workspace_deactivated' => 0,
+            'subscribed_at' => $data['plus_subscribed_at'],
+            'is_one_month_duration' => 1,
+        ];
+        $subscriptionData = $this->buildSubscriptionPayload($subscriptionPayloadData);
+        if ($subscriptionData['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $subscriptionData['error']);
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $this->accounts->update($accountId, [
+            'account_name'  => $data['plus_account_name'],
+            'email'         => $data['plus_email'],
+            'password_hint' => trim($data['plus_password_hint']) !== '' ? trim($data['plus_password_hint']) : null,
+            'notes'         => $data['plus_notes'] !== '' ? $data['plus_notes'] : null,
+        ]);
+
+        $newSubscriptionId = $this->subscriptions->insert(array_merge([
+            'account_id' => $accountId,
+            'store_source' => $resolvedStoreSource,
+            'subscription_type' => $resolvedSubscriptionType,
+        ], $subscriptionData['payload']), true);
+
+        $this->syncUsagesForSubscription(
+            (int) $newSubscriptionId,
+            'plus',
+            'seller_account',
+            $subscriptionData['default_reset_at']
+        );
+
+        $db->transComplete();
+        if (! $db->transStatus()) {
+            return redirect()->back()->withInput()->with('error', 'Gagal mengupdate akun plus deactivated. Silakan coba lagi.');
+        }
+
+        return redirect()
+            ->to('/accounts/' . $accountId)
+            ->with('success', 'Akun plus deactivated berhasil diperbarui tanpa hapus & create ulang account.');
     }
 
     public function deleteAccount(int $id): RedirectResponse

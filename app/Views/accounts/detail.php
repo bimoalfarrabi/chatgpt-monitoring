@@ -247,52 +247,92 @@ $chartDateDefault = date('Y-m-d');
 
             <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
                 <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
-                    <h4 class="text-[20px]">Buat Workspace Baru</h4>
-                    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                        Workspace ini sudah deactivated. Buat workspace pengganti, sementara data lama tetap tersimpan sebagai histori.
-                    </p>
+                    <?php if ($accountType === 'plus'): ?>
+                        <h4 class="text-[20px]">Update Akun Plus Deactivated</h4>
+                        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                            Jika akun plus lama sudah deactivated, Anda bisa langsung update data akun + buat subscription plus pengganti tanpa hapus akun dari awal.
+                        </p>
+                        <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/plus/update-deactivated" class="space-y-3">
+                            <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                                <label class="<?= $labelClass ?>">
+                                    Nama Akun Plus Baru
+                                    <input class="<?= $inputClass ?>" type="text" name="plus_account_name" required value="<?= esc(old('plus_account_name', (string) ($account['account_name'] ?? ''))) ?>">
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Email Akun Plus Baru
+                                    <input class="<?= $inputClass ?>" type="email" name="plus_email" required value="<?= esc(old('plus_email', (string) ($account['email'] ?? ''))) ?>">
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Password Akun Plus Baru
+                                    <div class="mt-1 flex flex-wrap items-center gap-2" data-password-field-group>
+                                        <input class="<?= $inputClass ?> mt-0 min-w-[180px] flex-1" type="password" name="plus_password_hint" value="<?= esc(old('plus_password_hint', (string) ($account['password_hint'] ?? ''))) ?>" autocomplete="off" data-password-field>
+                                        <button class="<?= $buttonSecondary ?>" type="button" data-password-toggle data-show-label="Unhide" data-hide-label="Hide">Unhide</button>
+                                        <button class="<?= $buttonSecondary ?>" type="button" data-password-copy>Copy</button>
+                                    </div>
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Tanggal Langganan Baru
+                                    <input class="<?= $inputClass ?>" type="datetime-local" name="plus_subscribed_at" required value="<?= esc(old('plus_subscribed_at', date('Y-m-d\\TH:i'))) ?>">
+                                </label>
+                            </div>
+                            <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]">
+                                Data workspace personal, sumber store, dan tipe subscription akan mengikuti data sebelumnya secara otomatis.
+                            </p>
+                            <label class="<?= $labelClass ?>">
+                                Catatan Akun
+                                <textarea class="<?= $inputClass ?>" name="plus_notes" rows="3"><?= esc(old('plus_notes', (string) ($account['notes'] ?? ''))) ?></textarea>
+                            </label>
 
-                    <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/workspace/create" class="space-y-3" data-workspace-create-form>
-                        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-                            <label class="<?= $labelClass ?>">
-                                Sumber Store
-                                <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc($subscription['store_source']) ?>">
-                            </label>
-                            <label class="<?= $labelClass ?>">
-                                Tipe Subscription
-                                <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
-                            </label>
-                            <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
-                                Jenis Akun Pro
-                                <select class="<?= $inputClass ?>" name="pro_account_type" <?= $isPro ? 'required' : '' ?> data-workspace-create-pro-select data-workspace-create-pro-invite-required>
-                                    <option value="">Pilih jenis akun pro</option>
-                                    <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
-                                    <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
-                                </select>
-                            </label>
-                            <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
-                                Nama Workspace Invite Baru
-                                <input class="<?= $inputClass ?>" type="text" name="workspace_name" <?= $isPro ? 'required' : '' ?> value="" data-workspace-create-pro-invite-required>
-                            </label>
-                            <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-workspace-create-personal-wrapper>
-                                Workspace Personal
-                                <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-workspace-create-personal-input>
-                            </label>
-                            <label class="<?= $labelClass ?>">
-                                Tanggal Langganan Baru
-                                <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" required value="<?= esc(date('Y-m-d\\TH:i')) ?>">
-                            </label>
-                            <label class="<?= $labelClass ?>">
-                                Durasi Satu Bulan?
-                                <select class="<?= $inputClass ?>" name="is_one_month_duration" data-workspace-create-one-month-select>
-                                    <option value="1" selected>Ya</option>
-                                    <option value="0">Tidak</option>
-                                </select>
-                            </label>
-                        </div>
+                            <button class="<?= $buttonPrimary ?>" type="submit">Update Akun Plus & Buat Subscription Baru</button>
+                        </form>
+                    <?php else: ?>
+                        <h4 class="text-[20px]">Buat Workspace Baru</h4>
+                        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                            Workspace ini sudah deactivated. Buat workspace pengganti, sementara data lama tetap tersimpan sebagai histori.
+                        </p>
 
-                        <button class="<?= $buttonPrimary ?>" type="submit">Simpan Workspace Baru</button>
-                    </form>
+                        <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/workspace/create" class="space-y-3" data-workspace-create-form>
+                            <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                                <label class="<?= $labelClass ?>">
+                                    Sumber Store
+                                    <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc($subscription['store_source']) ?>">
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Tipe Subscription
+                                    <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
+                                </label>
+                                <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
+                                    Jenis Akun Pro
+                                    <select class="<?= $inputClass ?>" name="pro_account_type" <?= $isPro ? 'required' : '' ?> data-workspace-create-pro-select data-workspace-create-pro-invite-required>
+                                        <option value="">Pilih jenis akun pro</option>
+                                        <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
+                                        <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
+                                    </select>
+                                </label>
+                                <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-workspace-create-pro-invite-only>
+                                    Nama Workspace Invite Baru
+                                    <input class="<?= $inputClass ?>" type="text" name="workspace_name" <?= $isPro ? 'required' : '' ?> value="" data-workspace-create-pro-invite-required>
+                                </label>
+                                <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-workspace-create-personal-wrapper>
+                                    Workspace Personal
+                                    <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-workspace-create-personal-input>
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Tanggal Langganan Baru
+                                    <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" required value="<?= esc(date('Y-m-d\\TH:i')) ?>">
+                                </label>
+                                <label class="<?= $labelClass ?>">
+                                    Durasi Satu Bulan?
+                                    <select class="<?= $inputClass ?>" name="is_one_month_duration" data-workspace-create-one-month-select>
+                                        <option value="1" selected>Ya</option>
+                                        <option value="0">Tidak</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <button class="<?= $buttonPrimary ?>" type="submit">Simpan Workspace Baru</button>
+                        </form>
+                    <?php endif; ?>
                 </section>
             <?php endif; ?>
         <?php else: ?>
