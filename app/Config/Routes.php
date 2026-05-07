@@ -24,6 +24,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('accounts/(:num)/update-password', 'WebController::updateAccountPassword/$1');
     $routes->post('accounts/(:num)/delete', 'WebController::deleteAccount/$1');
     $routes->post('subscriptions/(:num)/update', 'WebController::updateSubscription/$1');
+    $routes->post('subscriptions/(:num)/deactivate', 'WebController::deactivateSubscriptionWorkspace/$1');
     $routes->post('subscriptions/(:num)/renew', 'WebController::renewSubscription/$1');
     $routes->post('subscriptions/(:num)/workspace/create', 'WebController::createWorkspaceFromDeactivated/$1');
     $routes->post('subscriptions/(:num)/plus/update-deactivated', 'WebController::updatePlusAccountFromDeactivated/$1');

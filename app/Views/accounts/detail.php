@@ -240,9 +240,14 @@ $chartDateDefault = date('Y-m-d');
             </form>
 
             <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
-                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
-                    <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
-                </form>
+                <div class="flex flex-wrap gap-2">
+                    <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
+                        <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
+                    </form>
+                    <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/deactivate" onsubmit="return confirm('Ubah status workspace ini menjadi deactivated?')">
+                        <button class="<?= $buttonDanger ?>" type="submit">Set Deactivated</button>
+                    </form>
+                </div>
             <?php endif; ?>
 
             <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>

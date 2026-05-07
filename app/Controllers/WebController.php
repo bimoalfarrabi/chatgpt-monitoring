@@ -478,6 +478,31 @@ class WebController extends BaseController
         return redirect()->back()->with('success', 'Subscription berhasil diperpanjang otomatis +1 bulan.');
     }
 
+    public function deactivateSubscriptionWorkspace(int $id): RedirectResponse
+    {
+        $subscription = $this->subscriptions->find($id);
+        if (! $subscription) {
+            return redirect()->back()->with('error', 'Subscription tidak ditemukan.');
+        }
+
+        $accountType = SubscriptionStatusService::normalizeAccountType($subscription['account_type'] ?? null);
+        if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
+            return redirect()->back()->with('error', 'Aksi deactivated hanya berlaku untuk akun workspace (pro/plus).');
+        }
+
+        $isWorkspaceDeactivated = SubscriptionStatusService::parseBoolean($subscription['is_workspace_deactivated'] ?? null);
+        if ($isWorkspaceDeactivated) {
+            return redirect()->back()->with('error', 'Workspace ini sudah berstatus deactivated.');
+        }
+
+        $this->subscriptions->update($id, [
+            'is_workspace_deactivated' => 1,
+            'status' => 'deactivated',
+        ]);
+
+        return redirect()->back()->with('success', 'Workspace berhasil diubah ke status deactivated.');
+    }
+
     public function createWorkspaceFromDeactivated(int $id): RedirectResponse
     {
         $sourceSubscription = $this->subscriptions->find($id);
