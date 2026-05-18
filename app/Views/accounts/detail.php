@@ -30,6 +30,8 @@ $routerLatency7dLabel = $routerLatency7dMs >= 1000
     ? number_format($routerLatency7dMs / 1000, 1) . 's'
     : number_format($routerLatency7dMs) . 'ms';
 $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
+$routerAccountEmail = strtolower(trim((string) ($account['email'] ?? '')));
+$routerProviderDefault = trim((string) env('router.provider', ''));
 ?>
 
 <section class="space-y-2">
@@ -116,6 +118,61 @@ $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
             <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]">Last seen: <?= esc($routerLastSeen !== '' ? $routerLastSeen : '-') ?></div>
         </article>
     </div>
+</section>
+
+<section
+    class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2"
+    data-account-share-section
+    data-account-email="<?= esc($routerAccountEmail, 'attr') ?>"
+    data-provider-default="<?= esc($routerProviderDefault, 'attr') ?>"
+>
+    <h2>Grafik Persentase Usage Akun</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+        Persentase token akun ini dibanding total token semua akun 9router pada periode yang dipilih.
+    </p>
+    <div class="flex flex-wrap items-end gap-2">
+        <label class="<?= $labelClass ?>">
+            Provider
+            <select
+                data-account-share-provider
+                class="<?= $inputClass ?> mt-1 w-[160px]"
+            >
+                <option value="">All</option>
+                <option value="codex">codex</option>
+                <option value="openai">openai</option>
+                <option value="9router">9router</option>
+            </select>
+        </label>
+        <label class="<?= $labelClass ?>">
+            Rentang
+            <select
+                data-account-share-days
+                class="<?= $inputClass ?> mt-1 w-[140px]"
+            >
+                <option value="7">7 hari</option>
+                <option value="14">14 hari</option>
+                <option value="30" selected>30 hari</option>
+                <option value="60">60 hari</option>
+                <option value="90">90 hari</option>
+            </select>
+        </label>
+        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-account-share-caption>
+            Memuat persentase usage akun...
+        </p>
+    </div>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Share Token Periode</div>
+            <div data-account-share-badge class="mt-1 font-display text-[24px] leading-[1.2] text-[rgba(38,37,30,0.86)]">0%</div>
+            <div data-account-share-request class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]">0 request</div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Token Akun / Total</div>
+            <div data-account-share-tokens class="mt-1 font-display text-[20px] leading-[1.2] text-[rgba(38,37,30,0.86)]">0 / 0</div>
+            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]">basis observability 9router</div>
+        </article>
+    </div>
+    <div data-account-share-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3"></div>
 </section>
 
 <?php if ($subscriptions === []): ?>
@@ -350,6 +407,158 @@ $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
 
 <script>
 (() => {
+    const accountShareSection = document.querySelector('[data-account-share-section]');
+    const accountShareProviderInput = document.querySelector('[data-account-share-provider]');
+    const accountShareDaysInput = document.querySelector('[data-account-share-days]');
+    const accountShareCaption = document.querySelector('[data-account-share-caption]');
+    const accountShareBadge = document.querySelector('[data-account-share-badge]');
+    const accountShareRequest = document.querySelector('[data-account-share-request]');
+    const accountShareTokens = document.querySelector('[data-account-share-tokens]');
+    const accountShareChart = document.querySelector('[data-account-share-chart]');
+
+    const formatNumber = (value) => {
+        const numeric = Number(value ?? 0);
+        if (!Number.isFinite(numeric)) {
+            return '0';
+        }
+
+        return new Intl.NumberFormat('id-ID').format(Math.round(numeric));
+    };
+
+    const formatDecimal = (value, digits = 2) => {
+        const numeric = Number(value ?? 0);
+        if (!Number.isFinite(numeric)) {
+            return '0';
+        }
+
+        return new Intl.NumberFormat('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: digits,
+        }).format(numeric);
+    };
+
+    const renderAccountShareChart = (rows) => {
+        if (!accountShareChart) {
+            return;
+        }
+
+        const data = Array.isArray(rows) ? rows : [];
+        if (data.length === 0) {
+            accountShareChart.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data share harian pada rentang ini.</p>';
+            return;
+        }
+
+        const maxPercent = Math.max(...data.map((row) => Number(row?.usage_share_percent ?? 0)), 0.1);
+        const items = data.map((row) => {
+            const day = String(row?.day ?? '-');
+            const percent = Number(row?.usage_share_percent ?? 0);
+            const accountTokens = Number(row?.total_tokens_account ?? 0);
+            const totalTokens = Number(row?.total_tokens_all ?? 0);
+            const width = Math.max(2, Math.round((Math.max(0, percent) / maxPercent) * 100));
+
+            return `<li class="space-y-1 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-mono text-[11px] text-[rgba(38,37,30,0.7)]">${day}</span>
+                    <span class="font-mono text-[11px] text-[rgba(38,37,30,0.82)]">${formatDecimal(percent, 2)}%</span>
+                </div>
+                <div class="h-2 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200 overflow-hidden">
+                    <span class="block h-full rounded-full bg-[color-mix(in_srgb,#2f6db5_72%,#9fbbe0_28%)]" style="width:${width}%"></span>
+                </div>
+                <p class="font-mono text-[11px] text-[rgba(38,37,30,0.62)]">${formatNumber(accountTokens)} / ${formatNumber(totalTokens)} token</p>
+            </li>`;
+        }).join('');
+
+        accountShareChart.innerHTML = `<ul class="space-y-2">${items}</ul>`;
+    };
+
+    const loadAccountShare = async () => {
+        if (!accountShareSection || !accountShareProviderInput || !accountShareDaysInput) {
+            return;
+        }
+
+        const email = accountShareSection.getAttribute('data-account-email') || '';
+        const provider = accountShareProviderInput.value || '';
+        const days = accountShareDaysInput.value || '30';
+        if (email === '') {
+            return;
+        }
+
+        if (accountShareCaption) {
+            accountShareCaption.textContent = 'Memuat persentase usage akun...';
+        }
+
+        try {
+            const url = `/api/router/analytics/account-share?email=${encodeURIComponent(email)}&provider=${encodeURIComponent(provider)}&days=${encodeURIComponent(days)}`;
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const payload = await response.json();
+            if (payload?.status !== 'success' || typeof payload.data !== 'object' || payload.data === null) {
+                throw new Error('Invalid account share response');
+            }
+
+            const data = payload.data;
+            const summary = (typeof data.summary === 'object' && data.summary !== null) ? data.summary : {};
+            const dailyRows = Array.isArray(data.daily_share) ? data.daily_share : [];
+            const usageShare = Number(summary.usage_share_percent ?? 0);
+            const requestShare = Number(summary.request_share_percent ?? 0);
+            const accountTokens = Number(summary.total_tokens_account ?? 0);
+            const totalTokens = Number(summary.total_tokens_all ?? 0);
+            const accountRequests = Number(summary.total_requests_account ?? 0);
+            const totalRequests = Number(summary.total_requests_all ?? 0);
+
+            if (accountShareBadge) {
+                accountShareBadge.textContent = `${formatDecimal(usageShare, 2)}%`;
+            }
+            if (accountShareRequest) {
+                accountShareRequest.textContent = `${formatNumber(accountRequests)} / ${formatNumber(totalRequests)} request (${formatDecimal(requestShare, 2)}%)`;
+            }
+            if (accountShareTokens) {
+                accountShareTokens.textContent = `${formatNumber(accountTokens)} / ${formatNumber(totalTokens)}`;
+            }
+
+            renderAccountShareChart(dailyRows);
+
+            if (accountShareCaption) {
+                accountShareCaption.textContent = `Provider: ${provider !== '' ? provider : 'all'} · ${days} hari · titik harian ${dailyRows.length}`;
+            }
+        } catch (error) {
+            if (accountShareBadge) {
+                accountShareBadge.textContent = '0%';
+            }
+            if (accountShareRequest) {
+                accountShareRequest.textContent = 'Gagal memuat data';
+            }
+            if (accountShareTokens) {
+                accountShareTokens.textContent = '0 / 0';
+            }
+            if (accountShareChart) {
+                accountShareChart.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat grafik persentase usage akun.</p>';
+            }
+            if (accountShareCaption) {
+                accountShareCaption.textContent = 'Gagal memuat persentase usage akun.';
+            }
+        }
+    };
+
+    if (accountShareSection && accountShareProviderInput && accountShareDaysInput) {
+        const defaultProvider = accountShareSection.getAttribute('data-provider-default') || '';
+        if (defaultProvider !== '') {
+            accountShareProviderInput.value = defaultProvider;
+        }
+        accountShareProviderInput.addEventListener('change', loadAccountShare);
+        accountShareDaysInput.addEventListener('change', loadAccountShare);
+        loadAccountShare();
+    }
+
     const historySections = Array.from(document.querySelectorAll('[data-history-section][data-account-id]'));
     historySections.forEach((section) => {
         section.addEventListener('click', async (event) => {

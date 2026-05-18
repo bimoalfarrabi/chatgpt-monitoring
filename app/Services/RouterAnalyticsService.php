@@ -138,6 +138,144 @@ class RouterAnalyticsService
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function accountShareByEmail(string $email, string $provider = '', int $days = 30): array
+    {
+        $normalizedEmail = strtolower(trim($email));
+        $provider = strtolower(trim($provider));
+        $days = max(1, min(3650, $days));
+        $minSeenAt = date('Y-m-d H:i:s', strtotime('-' . $days . ' days'));
+
+        if ($normalizedEmail === '' || filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
+            return [
+                'filters' => [
+                    'email' => $normalizedEmail,
+                    'provider' => $provider !== '' ? $provider : 'all',
+                    'days' => $days,
+                    'min_seen_at' => $minSeenAt,
+                ],
+                'summary' => [
+                    'total_tokens_all' => 0,
+                    'total_tokens_account' => 0,
+                    'usage_share_percent' => 0.0,
+                    'total_requests_all' => 0,
+                    'total_requests_account' => 0,
+                    'request_share_percent' => 0.0,
+                ],
+                'daily_share' => [],
+            ];
+        }
+
+        $totalsBuilder = db_connect()
+            ->table('ai_router_usage_events')
+            ->select('COUNT(*) AS total_requests_all, SUM(input_tokens + output_tokens) AS total_tokens_all', false)
+            ->where('event_at >=', $minSeenAt);
+        if ($provider !== '') {
+            $totalsBuilder->where('provider', $provider);
+        }
+        $totals = $totalsBuilder->get()->getRowArray() ?? [];
+
+        $accountBuilder = db_connect()
+            ->table('ai_router_usage_events e')
+            ->select('COUNT(*) AS total_requests_account, SUM(e.input_tokens + e.output_tokens) AS total_tokens_account', false)
+            ->join('ai_router_accounts a', 'a.provider = e.provider AND a.router_account_ref = e.router_account_ref', 'inner')
+            ->where('e.event_at >=', $minSeenAt)
+            ->where('LOWER(a.email)', $normalizedEmail);
+        if ($provider !== '') {
+            $accountBuilder->where('e.provider', $provider);
+        }
+        $accountTotals = $accountBuilder->get()->getRowArray() ?? [];
+
+        $dailyTotalsBuilder = db_connect()
+            ->table('ai_router_usage_events')
+            ->select('DATE(event_at) AS day, COUNT(*) AS total_requests_all, SUM(input_tokens + output_tokens) AS total_tokens_all', false)
+            ->where('event_at >=', $minSeenAt);
+        if ($provider !== '') {
+            $dailyTotalsBuilder->where('provider', $provider);
+        }
+        $dailyTotalsRows = $dailyTotalsBuilder
+            ->groupBy('DATE(event_at)', false)
+            ->orderBy('day', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $dailyAccountBuilder = db_connect()
+            ->table('ai_router_usage_events e')
+            ->select('DATE(e.event_at) AS day, COUNT(*) AS total_requests_account, SUM(e.input_tokens + e.output_tokens) AS total_tokens_account', false)
+            ->join('ai_router_accounts a', 'a.provider = e.provider AND a.router_account_ref = e.router_account_ref', 'inner')
+            ->where('e.event_at >=', $minSeenAt)
+            ->where('LOWER(a.email)', $normalizedEmail);
+        if ($provider !== '') {
+            $dailyAccountBuilder->where('e.provider', $provider);
+        }
+        $dailyAccountRows = $dailyAccountBuilder
+            ->groupBy('DATE(e.event_at)', false)
+            ->orderBy('day', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $dailyAccountMap = [];
+        foreach ($dailyAccountRows as $row) {
+            $day = (string) ($row['day'] ?? '');
+            if ($day === '') {
+                continue;
+            }
+            $dailyAccountMap[$day] = [
+                'total_requests_account' => (int) ($row['total_requests_account'] ?? 0),
+                'total_tokens_account' => (int) ($row['total_tokens_account'] ?? 0),
+            ];
+        }
+
+        $dailyShare = [];
+        foreach ($dailyTotalsRows as $row) {
+            $day = (string) ($row['day'] ?? '');
+            if ($day === '') {
+                continue;
+            }
+
+            $totalRequestsAll = (int) ($row['total_requests_all'] ?? 0);
+            $totalTokensAll = (int) ($row['total_tokens_all'] ?? 0);
+            $accountDay = $dailyAccountMap[$day] ?? ['total_requests_account' => 0, 'total_tokens_account' => 0];
+            $totalRequestsAccount = (int) ($accountDay['total_requests_account'] ?? 0);
+            $totalTokensAccount = (int) ($accountDay['total_tokens_account'] ?? 0);
+
+            $dailyShare[] = [
+                'day' => $day,
+                'total_tokens_all' => $totalTokensAll,
+                'total_tokens_account' => $totalTokensAccount,
+                'usage_share_percent' => $totalTokensAll > 0 ? round(($totalTokensAccount / $totalTokensAll) * 100, 2) : 0.0,
+                'total_requests_all' => $totalRequestsAll,
+                'total_requests_account' => $totalRequestsAccount,
+                'request_share_percent' => $totalRequestsAll > 0 ? round(($totalRequestsAccount / $totalRequestsAll) * 100, 2) : 0.0,
+            ];
+        }
+
+        $totalTokensAll = (int) ($totals['total_tokens_all'] ?? 0);
+        $totalTokensAccount = (int) ($accountTotals['total_tokens_account'] ?? 0);
+        $totalRequestsAll = (int) ($totals['total_requests_all'] ?? 0);
+        $totalRequestsAccount = (int) ($accountTotals['total_requests_account'] ?? 0);
+
+        return [
+            'filters' => [
+                'email' => $normalizedEmail,
+                'provider' => $provider !== '' ? $provider : 'all',
+                'days' => $days,
+                'min_seen_at' => $minSeenAt,
+            ],
+            'summary' => [
+                'total_tokens_all' => $totalTokensAll,
+                'total_tokens_account' => $totalTokensAccount,
+                'usage_share_percent' => $totalTokensAll > 0 ? round(($totalTokensAccount / $totalTokensAll) * 100, 2) : 0.0,
+                'total_requests_all' => $totalRequestsAll,
+                'total_requests_account' => $totalRequestsAccount,
+                'request_share_percent' => $totalRequestsAll > 0 ? round(($totalRequestsAccount / $totalRequestsAll) * 100, 2) : 0.0,
+            ],
+            'daily_share' => $dailyShare,
+        ];
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $rows
      * @param callable(array<string,mixed>):int|float|null $scoreResolver
      *

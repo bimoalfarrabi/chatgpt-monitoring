@@ -64,4 +64,5 @@ $routes->group('api', ['filter' => 'auth'], static function ($routes) {
 
     $routes->get('router/analytics/summary', 'Api\\RouterAnalyticsController::summary');
     $routes->get('router/analytics/charts', 'Api\\RouterAnalyticsController::charts');
+    $routes->get('router/analytics/account-share', 'Api\\RouterAnalyticsController::accountShare');
 });

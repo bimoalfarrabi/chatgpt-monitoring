@@ -51,4 +51,22 @@ class RouterAnalyticsController extends BaseApiController
 
         return $this->ok($data);
     }
+
+    public function accountShare(): ResponseInterface
+    {
+        $email = trim((string) ($this->request->getGet('email') ?? ''));
+        $provider = trim((string) ($this->request->getGet('provider') ?? ''));
+        $days = (int) ($this->request->getGet('days') ?? 30);
+        if ($days <= 0) {
+            $days = 30;
+        }
+
+        try {
+            $data = $this->analytics->accountShareByEmail($email, $provider, $days);
+        } catch (\Throwable $e) {
+            return $this->failMessage('Gagal mengambil account share analytics: ' . $e->getMessage(), 500);
+        }
+
+        return $this->ok($data);
+    }
 }
