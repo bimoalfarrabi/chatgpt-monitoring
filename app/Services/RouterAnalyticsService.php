@@ -111,11 +111,14 @@ class RouterAnalyticsService
         $days = max(1, min(3650, $days));
         $top = max(3, min(30, $top));
         $minSeenAt = date('Y-m-d H:i:s', strtotime('-' . $days . ' days'));
+        $overview = $this->periodOverview($provider, $minSeenAt);
 
         $dailyRows = $this->dailyTokenSeries($provider, $minSeenAt);
-        $accountRows = $this->accountUsageBreakdown($provider, $minSeenAt, $top);
-        $modelRows = $this->modelUsageBreakdown($provider, $minSeenAt, $top);
+        $accountRows = $this->accountUsageBreakdown($provider, $minSeenAt, $top, (int) ($overview['total_tokens'] ?? 0));
+        $modelRows = $this->modelUsageBreakdown($provider, $minSeenAt, $top, (int) ($overview['total_tokens'] ?? 0));
         $hourlyRows = $this->hourlyActivity($provider, $minSeenAt);
+        $statusRows = $this->statusBreakdown((int) ($overview['total_requests'] ?? 0), (int) ($overview['complete_requests'] ?? 0), (int) ($overview['disconnect_requests'] ?? 0));
+        $successRate = (float) ($overview['success_rate_percent'] ?? 0.0);
 
         return [
             'filters' => [
@@ -124,6 +127,9 @@ class RouterAnalyticsService
                 'top' => $top,
                 'min_seen_at' => $minSeenAt,
             ],
+            'overview' => $overview,
+            'success_rate_percent' => $successRate,
+            'status_breakdown' => $statusRows,
             'daily_tokens' => $dailyRows,
             'usage_by_account' => $accountRows,
             'usage_by_model' => $modelRows,
@@ -201,6 +207,49 @@ class RouterAnalyticsService
     }
 
     /**
+     * @return array<string, int|float>
+     */
+    private function periodOverview(string $provider, string $minSeenAt): array
+    {
+        $builder = db_connect()
+            ->table('ai_router_usage_events')
+            ->select("
+                COUNT(*) AS total_requests,
+                SUM(input_tokens) AS total_input_tokens,
+                SUM(output_tokens) AS total_output_tokens,
+                SUM(cache_read_tokens) AS total_cache_read_tokens,
+                SUM(reasoning_tokens) AS total_reasoning_tokens,
+                SUM(CASE WHEN LOWER(COALESCE(status, '')) = 'complete' THEN 1 ELSE 0 END) AS complete_requests,
+                SUM(CASE WHEN LOWER(COALESCE(status, '')) LIKE 'disconnect%' THEN 1 ELSE 0 END) AS disconnect_requests
+            ", false)
+            ->where('event_at >=', $minSeenAt);
+
+        if ($provider !== '') {
+            $builder->where('provider', $provider);
+        }
+
+        $row = $builder->get()->getRowArray() ?? [];
+        $totalRequests = (int) ($row['total_requests'] ?? 0);
+        $inputTokens = (int) ($row['total_input_tokens'] ?? 0);
+        $outputTokens = (int) ($row['total_output_tokens'] ?? 0);
+        $completeRequests = (int) ($row['complete_requests'] ?? 0);
+        $disconnectRequests = (int) ($row['disconnect_requests'] ?? 0);
+
+        return [
+            'total_requests' => $totalRequests,
+            'total_input_tokens' => $inputTokens,
+            'total_output_tokens' => $outputTokens,
+            'total_tokens' => $inputTokens + $outputTokens,
+            'total_cache_read_tokens' => (int) ($row['total_cache_read_tokens'] ?? 0),
+            'total_reasoning_tokens' => (int) ($row['total_reasoning_tokens'] ?? 0),
+            'complete_requests' => $completeRequests,
+            'disconnect_requests' => $disconnectRequests,
+            'other_requests' => max(0, $totalRequests - $completeRequests - $disconnectRequests),
+            'success_rate_percent' => $totalRequests > 0 ? round(($completeRequests / $totalRequests) * 100, 2) : 0.0,
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function topModels(string $provider, string $minSeenAt): array
@@ -271,7 +320,7 @@ class RouterAnalyticsService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function accountUsageBreakdown(string $provider, string $minSeenAt, int $limit): array
+    private function accountUsageBreakdown(string $provider, string $minSeenAt, int $limit, int $grandTotalTokens = 0): array
     {
         $builder = db_connect()
             ->table('ai_router_usage_events e')
@@ -323,6 +372,9 @@ class RouterAnalyticsService
             $row['avg_tokens_per_request'] = $requests > 0
                 ? (int) round(($input + $output) / $requests)
                 : 0;
+            $row['usage_percent'] = $grandTotalTokens > 0
+                ? round((($input + $output) / $grandTotalTokens) * 100, 2)
+                : 0.0;
         }
         unset($row);
 
@@ -332,7 +384,7 @@ class RouterAnalyticsService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function modelUsageBreakdown(string $provider, string $minSeenAt, int $limit): array
+    private function modelUsageBreakdown(string $provider, string $minSeenAt, int $limit, int $grandTotalTokens = 0): array
     {
         $builder = db_connect()
             ->table('ai_router_usage_events')
@@ -378,10 +430,46 @@ class RouterAnalyticsService
             $row['avg_tokens_per_request'] = $requests > 0
                 ? (int) round(($input + $output) / $requests)
                 : 0;
+            $row['usage_percent'] = $grandTotalTokens > 0
+                ? round((($input + $output) / $grandTotalTokens) * 100, 2)
+                : 0.0;
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * @return array<int, array<string, int|float|string>>
+     */
+    private function statusBreakdown(int $totalRequests, int $completeRequests, int $disconnectRequests): array
+    {
+        $otherRequests = max(0, $totalRequests - $completeRequests - $disconnectRequests);
+        $percent = static function (int $count) use ($totalRequests): float {
+            if ($totalRequests <= 0) {
+                return 0.0;
+            }
+
+            return round(($count / $totalRequests) * 100, 2);
+        };
+
+        return [
+            [
+                'status' => 'complete',
+                'total_requests' => $completeRequests,
+                'percentage' => $percent($completeRequests),
+            ],
+            [
+                'status' => 'disconnect',
+                'total_requests' => $disconnectRequests,
+                'percentage' => $percent($disconnectRequests),
+            ],
+            [
+                'status' => 'other',
+                'total_requests' => $otherRequests,
+                'percentage' => $percent($otherRequests),
+            ],
+        ];
     }
 
     /**

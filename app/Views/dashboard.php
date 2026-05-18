@@ -165,7 +165,7 @@ $sectionTitle = 'mb-2 space-y-2';
             <div data-router-hourly-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
         </article>
     </div>
-    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
             <h3 class="flex items-center justify-between gap-2">
                 <span>Cache Ratio Harian (%)</span>
@@ -185,6 +185,16 @@ $sectionTitle = 'mb-2 space-y-2';
                 >Loading</span>
             </h3>
             <div data-router-latency-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3 class="flex items-center justify-between gap-2">
+                <span>Success Rate Stream (%)</span>
+                <span
+                    data-router-success-badge
+                    class="inline-flex items-center rounded-full border px-2 py-[3px] font-display text-[12px] leading-[1.4] border-[rgba(38,37,30,0.14)] text-[rgba(38,37,30,0.72)] bg-[rgba(38,37,30,0.06)]"
+                >Loading</span>
+            </h3>
+            <div data-router-status-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
         </article>
     </div>
     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
@@ -468,10 +478,12 @@ $sectionTitle = 'mb-2 space-y-2';
     const cacheBadge = document.querySelector('[data-router-cache-badge]');
     const latencyRoot = document.querySelector('[data-router-latency-chart]');
     const latencyBadge = document.querySelector('[data-router-latency-badge]');
+    const statusRoot = document.querySelector('[data-router-status-chart]');
+    const successBadge = document.querySelector('[data-router-success-badge]');
     const accountRoot = document.querySelector('[data-router-account-chart]');
     const modelRoot = document.querySelector('[data-router-model-chart]');
 
-    if (!providerInput || !daysInput || !dailyRoot || !hourlyRoot || !cacheRoot || !latencyRoot || !accountRoot || !modelRoot) {
+    if (!providerInput || !daysInput || !dailyRoot || !hourlyRoot || !cacheRoot || !latencyRoot || !statusRoot || !accountRoot || !modelRoot) {
         return;
     }
 
@@ -569,6 +581,17 @@ $sectionTitle = 'mb-2 space-y-2';
             return { label: 'Healthy', tone: 'good' };
         }
         if (avgRatio >= 50) {
+            return { label: 'Moderate', tone: 'warn' };
+        }
+
+        return { label: 'Low', tone: 'bad' };
+    };
+
+    const successRateVisual = (successRate) => {
+        if (successRate >= 80) {
+            return { label: 'Healthy', tone: 'good' };
+        }
+        if (successRate >= 50) {
             return { label: 'Moderate', tone: 'warn' };
         }
 
@@ -695,8 +718,43 @@ $sectionTitle = 'mb-2 space-y-2';
         `;
     };
 
+    const renderStatusBreakdown = (root, rows) => {
+        const data = Array.isArray(rows) ? rows : [];
+        if (data.length === 0) {
+            root.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data status stream pada rentang ini.</p>';
+            return;
+        }
+
+        const toneByStatus = {
+            complete: 'bg-[color-mix(in_srgb,#1f8a65_70%,#9fc9a2_30%)]',
+            disconnect: 'bg-[color-mix(in_srgb,#cf2d56_72%,#dfa88f_28%)]',
+            other: 'bg-[color-mix(in_srgb,#c08532_70%,#f2c073_30%)]',
+        };
+
+        const items = data.map((row) => {
+            const status = String(row?.status ?? 'other').toLowerCase();
+            const count = Number(row?.total_requests ?? 0);
+            const percentage = Number(row?.percentage ?? 0);
+            const width = Math.max(2, Math.round(Math.max(0, Math.min(100, percentage))));
+            const colorClass = toneByStatus[status] ?? toneByStatus.other;
+
+            return `<li class="space-y-1 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-ui text-[12px] uppercase tracking-[0.05em] text-[rgba(38,37,30,0.78)]">${escapeHtml(status)}</span>
+                    <span class="font-mono text-[11px] text-[rgba(38,37,30,0.76)]">${formatDecimal(percentage, 2)}%</span>
+                </div>
+                <div class="h-2 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200 overflow-hidden">
+                    <span class="block h-full rounded-full ${colorClass}" style="width:${width}%"></span>
+                </div>
+                <p class="font-mono text-[11px] text-[rgba(38,37,30,0.62)]">${formatNumber(count)} request</p>
+            </li>`;
+        }).join('');
+
+        root.innerHTML = `<ul class="space-y-2">${items}</ul>`;
+    };
+
     const setLoading = (state) => {
-        [dailyRoot, hourlyRoot, cacheRoot, latencyRoot, accountRoot, modelRoot].forEach((node) => {
+        [dailyRoot, hourlyRoot, cacheRoot, latencyRoot, statusRoot, accountRoot, modelRoot].forEach((node) => {
             node.classList.toggle('opacity-70', state);
             node.classList.toggle('pointer-events-none', state);
         });
@@ -741,16 +799,20 @@ $sectionTitle = 'mb-2 space-y-2';
             const hourlyRows = Array.isArray(data.activity_by_hour) ? data.activity_by_hour : [];
             const accountRows = Array.isArray(data.usage_by_account) ? data.usage_by_account : [];
             const modelRows = Array.isArray(data.usage_by_model) ? data.usage_by_model : [];
+            const statusRows = Array.isArray(data.status_breakdown) ? data.status_breakdown : [];
+            const successRate = Number(data.success_rate_percent ?? 0);
             const avgCacheRatio = averageSeriesValue(dailyRows, 'cache_ratio_percent');
             const avgLatency = averageSeriesValue(dailyRows, 'avg_latency_ms', true);
             const cacheTone = cacheVisual(avgCacheRatio);
             const latencyTone = latencyVisual(avgLatency);
             const cacheBadgeState = cacheVisualTone(avgCacheRatio);
+            const successBadgeState = successRateVisual(successRate);
 
             renderSimpleLineChart(dailyRoot, dailyRows, 'day', 'total_tokens', 'Belum ada data token harian pada rentang ini.', '#2f6db5');
             renderSimpleLineChart(hourlyRoot, hourlyRows, 'label', 'total_requests', 'Belum ada data aktivitas request pada rentang ini.', '#1f8a65');
             renderSimpleLineChart(cacheRoot, dailyRows, 'day', 'cache_ratio_percent', 'Belum ada data cache ratio harian pada rentang ini.', cacheTone.color, (value) => formatDecimal(value, 2), '%', `Threshold: >=80 healthy · 50-79 moderate · <50 low | avg ${formatDecimal(avgCacheRatio, 2)}%`);
             renderSimpleLineChart(latencyRoot, dailyRows, 'day', 'avg_latency_ms', 'Belum ada data latency harian pada rentang ini.', latencyTone.color, (value) => formatDecimal(value, 0), 'ms', `Threshold: <=8000 fast · 8001-15000 moderate · >15000 slow | avg ${formatDecimal(avgLatency, 0)}ms`);
+            renderStatusBreakdown(statusRoot, statusRows);
 
             renderBarList(
                 accountRoot,
@@ -758,7 +820,7 @@ $sectionTitle = 'mb-2 space-y-2';
                 'total_tokens',
                 'display',
                 'Belum ada data usage per akun pada rentang ini.',
-                (row) => `req=${formatNumber(row?.total_requests)} · cache=${row?.cache_ratio_percent ?? 0}% · latency=${formatNumber(row?.avg_latency_ms)}ms`
+                (row) => `${formatDecimal(row?.usage_percent ?? 0, 2)}% dari total · req=${formatNumber(row?.total_requests)} · cache=${row?.cache_ratio_percent ?? 0}%`
             );
 
             renderBarList(
@@ -767,25 +829,28 @@ $sectionTitle = 'mb-2 space-y-2';
                 'total_tokens',
                 'model',
                 'Belum ada data usage per model pada rentang ini.',
-                (row) => `req=${formatNumber(row?.total_requests)} · reasoning=${formatNumber(row?.reasoning_tokens)} · cache=${row?.cache_ratio_percent ?? 0}%`
+                (row) => `${formatDecimal(row?.usage_percent ?? 0, 2)}% dari total · req=${formatNumber(row?.total_requests)} · cache=${row?.cache_ratio_percent ?? 0}%`
             );
 
             updateCaption(data.filters ?? {}, dailyRows);
             if (caption) {
-                caption.textContent = `${caption.textContent} · cache ${cacheTone.note} · latency ${latencyTone.note}`;
+                caption.textContent = `${caption.textContent} · cache ${cacheTone.note} · latency ${latencyTone.note} · success ${formatDecimal(successRate, 2)}%`;
             }
             setBadge(cacheBadge, `${cacheBadgeState.label} ${formatDecimal(avgCacheRatio, 1)}%`, cacheBadgeState.tone);
             setBadge(latencyBadge, `${latencyTone.label ?? 'No Data'} ${formatLatencyCompact(avgLatency)}`, latencyTone.tone ?? 'neutral');
+            setBadge(successBadge, `${successBadgeState.label} ${formatDecimal(successRate, 1)}%`, successBadgeState.tone);
         } catch (error) {
             const message = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data observability 9router.</p>';
             dailyRoot.innerHTML = message;
             hourlyRoot.innerHTML = message;
             cacheRoot.innerHTML = message;
             latencyRoot.innerHTML = message;
+            statusRoot.innerHTML = message;
             accountRoot.innerHTML = message;
             modelRoot.innerHTML = message;
             setBadge(cacheBadge, 'No Data', 'neutral');
             setBadge(latencyBadge, 'No Data', 'neutral');
+            setBadge(successBadge, 'No Data', 'neutral');
             if (caption) {
                 caption.textContent = 'Gagal memuat data observability 9router.';
             }
