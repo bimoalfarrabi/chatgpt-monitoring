@@ -14,6 +14,20 @@ $routerTopAccount7d = ['email' => '-', 'tokens_7d' => 0];
 $routerDigestLogPath = trim((string) env('router.logPath', ''));
 $routerDigestProvider = trim((string) env('router.provider', '9router'));
 $routerDigestConfigured = $routerDigestLogPath !== '';
+$routerShipperLogPath = trim((string) env('ROUTER_SHIPPER_LOG_PATH', ''));
+$routerShipperProvider = trim((string) env('ROUTER_SHIPPER_PROVIDER', '9router'));
+$routerShipperEndpoint = trim((string) env('ROUTER_SHIPPER_ENDPOINT', ''));
+$routerEffectiveLogPath = $routerDigestLogPath !== '' ? $routerDigestLogPath : $routerShipperLogPath;
+$routerCommandExposeLog = trim($routerEffectiveLogPath) !== ''
+    ? '9router 2>&1 | tee -a ' . $routerEffectiveLogPath
+    : '9router 2>&1 | tee -a /path/to/9router.log';
+$routerCommandShipper = '/opt/lampp/bin/php scripts/router_log_shipper.php';
+$routerCommandShipperFull = 'php scripts/router_log_shipper.php --log='
+    . ($routerShipperLogPath !== '' ? $routerShipperLogPath : '/path/to/9router.log')
+    . ' --endpoint='
+    . ($routerShipperEndpoint !== '' ? $routerShipperEndpoint : 'https://domainkamu.com/api/router/ingest')
+    . ' --provider='
+    . ($routerShipperProvider !== '' ? $routerShipperProvider : '9router');
 
 $urutExpired = $subscriptions;
 usort($urutExpired, static function (array $a, array $b): int {
@@ -205,6 +219,57 @@ $sectionTitle = 'mb-2 space-y-2';
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
             <h3>Distribusi per Model</h3>
             <div data-router-model-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+    </div>
+</section>
+
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
+    <h2>Command Cepat 9router</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+        Shortcut operasional untuk menjalankan router dengan expose log dan mengirim log ke endpoint ingest.
+    </p>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3>1) Jalankan Router + Expose Log</h3>
+                <button
+                    class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface400 px-3 py-[5px] font-display text-[13px] font-medium tracking-[0.02em] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.22)]"
+                    type="button"
+                    data-copy-text="<?= esc($routerCommandExposeLog, 'attr') ?>"
+                    data-copy-default-label="Copy"
+                >Copy</button>
+            </div>
+            <pre class="overflow-x-auto rounded-md border border-[rgba(38,37,30,0.12)] bg-surface400 px-3 py-2 font-mono text-[11px] leading-[1.5] tracking-[-0.01em] text-[rgba(38,37,30,0.78)]"><code><?= esc($routerCommandExposeLog) ?></code></pre>
+            <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.6)]">
+                Tujuan: output runtime 9router ditulis ke file log untuk diproses collector/shipper.
+            </p>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3>2) Jalankan Log Shipper</h3>
+                <button
+                    class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface400 px-3 py-[5px] font-display text-[13px] font-medium tracking-[0.02em] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.22)]"
+                    type="button"
+                    data-copy-text="<?= esc($routerCommandShipper, 'attr') ?>"
+                    data-copy-default-label="Copy"
+                >Copy</button>
+            </div>
+            <pre class="overflow-x-auto rounded-md border border-[rgba(38,37,30,0.12)] bg-surface400 px-3 py-2 font-mono text-[11px] leading-[1.5] tracking-[-0.01em] text-[rgba(38,37,30,0.78)]"><code><?= esc($routerCommandShipper) ?></code></pre>
+            <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.6)]">
+                Versi env-based. Jika `ROUTER_SHIPPER_*` di `.env` sudah lengkap, command ini cukup.
+            </p>
+            <details class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2.5 py-2">
+                <summary class="cursor-pointer font-ui text-[12px] text-[rgba(38,37,30,0.72)]">Lihat versi command lengkap (dengan argumen)</summary>
+                <div class="mt-2 space-y-2">
+                    <button
+                        class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface300 px-2 py-[4px] font-display text-[12px] font-medium tracking-[0.02em] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.22)]"
+                        type="button"
+                        data-copy-text="<?= esc($routerCommandShipperFull, 'attr') ?>"
+                        data-copy-default-label="Copy Full"
+                    >Copy Full</button>
+                    <pre class="overflow-x-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2 font-mono text-[11px] leading-[1.5] tracking-[-0.01em] text-[rgba(38,37,30,0.78)]"><code><?= esc($routerCommandShipperFull) ?></code></pre>
+                </div>
+            </details>
         </article>
     </div>
 </section>
@@ -862,6 +927,47 @@ $sectionTitle = 'mb-2 space-y-2';
     providerInput.addEventListener('change', loadRouterCharts);
     daysInput.addEventListener('change', loadRouterCharts);
     loadRouterCharts();
+
+    const quickCopyButtons = Array.from(document.querySelectorAll('[data-copy-text]'));
+    quickCopyButtons.forEach((button) => {
+        button.addEventListener('click', async () => {
+            const value = button.getAttribute('data-copy-text') || '';
+            if (value === '') {
+                return;
+            }
+
+            let copied = false;
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(value);
+                    copied = true;
+                } catch (error) {
+                    copied = false;
+                }
+            }
+
+            if (!copied) {
+                const tempInput = document.createElement('input');
+                tempInput.type = 'text';
+                tempInput.value = value;
+                tempInput.setAttribute('readonly', 'readonly');
+                tempInput.style.position = 'fixed';
+                tempInput.style.left = '-1000px';
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                copied = document.execCommand('copy');
+                document.body.removeChild(tempInput);
+            }
+
+            if (copied) {
+                const defaultLabel = button.getAttribute('data-copy-default-label') || 'Copy';
+                button.textContent = 'Copied';
+                setTimeout(() => {
+                    button.textContent = defaultLabel;
+                }, 1200);
+            }
+        });
+    });
 })();
 </script>
 <?= $this->endSection() ?>
