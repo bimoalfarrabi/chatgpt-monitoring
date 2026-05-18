@@ -153,86 +153,87 @@ $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
             </div>
         </div>
 
-        <?php if ($isWorkspace): ?>
-            <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/update" class="space-y-3">
-                <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-                    <label class="<?= $labelClass ?>">
-                        Sumber Store
-                        <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc($subscription['store_source']) ?>">
-                    </label>
-                    <label class="<?= $labelClass ?>">
-                        Tipe Subscription
-                        <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
-                    </label>
-                    <label class="<?= $labelClass ?>">
-                        Jenis Akun ChatGPT
-                        <select class="<?= $inputClass ?>" name="account_type" required data-subscription-type-select="<?= esc((string) $formId) ?>">
-                            <option value="free" <?= $accountType === 'free' ? 'selected' : '' ?>>Free (Personal)</option>
-                            <option value="pro" <?= $accountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
-                            <option value="plus" <?= $accountType === 'plus' ? 'selected' : '' ?>>Plus (Seller)</option>
-                        </select>
-                    </label>
+        <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/update" class="space-y-3">
+            <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+                <label class="<?= $labelClass ?>">
+                    Sumber Store
+                    <input class="<?= $inputClass ?>" type="text" name="store_source" required value="<?= esc($subscription['store_source']) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Tipe Subscription
+                    <input class="<?= $inputClass ?>" type="text" name="subscription_type" required value="<?= esc($subscription['subscription_type']) ?>">
+                </label>
+                <label class="<?= $labelClass ?>">
+                    Jenis Akun ChatGPT
+                    <select class="<?= $inputClass ?>" name="account_type" required data-subscription-type-select="<?= esc((string) $formId) ?>">
+                        <option value="free" <?= $accountType === 'free' ? 'selected' : '' ?>>Free (Personal)</option>
+                        <option value="pro" <?= $accountType === 'pro' ? 'selected' : '' ?>>Pro (Workspace)</option>
+                        <option value="plus" <?= $accountType === 'plus' ? 'selected' : '' ?>>Plus (Seller)</option>
+                    </select>
+                </label>
 
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
-                        Jenis Akun Pro
-                        <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-type-select="<?= esc((string) $formId) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
-                            <option value="">Pilih jenis akun pro</option>
-                            <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
-                            <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
-                        </select>
-                    </label>
-                    <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
-                        Nama Workspace Invite
-                        <input class="<?= $inputClass ?>" type="text" name="workspace_name" value="<?= esc((string) ($subscription['workspace_name'] ?? '')) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
-                    </label>
-                    <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-personal-invite-only="<?= esc((string) $formId) ?>">
-                        Workspace Personal
-                        <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-personal-invite-required="<?= esc((string) $formId) ?>">
-                    </label>
-                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
-                        Status Workspace
-                        <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required="<?= esc((string) $formId) ?>">
-                            <option value="0" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0 ? 'selected' : '' ?>>Aktif</option>
-                            <option value="1" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'selected' : '' ?>>Deactivated</option>
-                        </select>
-                    </label>
-                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
-                        Tanggal Langganan
-                        <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" value="<?= esc(isset($subscription['subscribed_at']) && $subscription['subscribed_at'] ? date('Y-m-d\\TH:i', strtotime((string) $subscription['subscribed_at'])) : '') ?>" data-pro-required="<?= esc((string) $formId) ?>">
-                    </label>
-                    <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
-                        Durasi Satu Bulan?
-                        <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required="<?= esc((string) $formId) ?>" data-one-month-select="<?= esc((string) $formId) ?>">
-                            <option value="1" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'selected' : '' ?>>Ya</option>
-                            <option value="0" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 0 ? 'selected' : '' ?>>Tidak</option>
-                        </select>
-                    </label>
-                </div>
+                <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
+                    Jenis Akun Pro
+                    <select class="<?= $inputClass ?>" name="pro_account_type" data-pro-type-select="<?= esc((string) $formId) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
+                        <option value="">Pilih jenis akun pro</option>
+                        <option value="personal_invite" <?= $proType === 'personal_invite' ? 'selected' : '' ?>>Invite Akun Pribadi</option>
+                        <option value="seller_account" <?= $proType === 'seller_account' ? 'selected' : '' ?>>Akun dari Seller</option>
+                    </select>
+                </label>
+                <label class="<?= $labelClass ?> <?= $isPro ? '' : 'hidden' ?>" data-pro-invite-only="<?= esc((string) $formId) ?>">
+                    Nama Workspace Invite
+                    <input class="<?= $inputClass ?>" type="text" name="workspace_name" value="<?= esc((string) ($subscription['workspace_name'] ?? '')) ?>" data-pro-invite-required="<?= esc((string) $formId) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $showPersonalWorkspace ? '' : 'hidden' ?>" data-personal-invite-only="<?= esc((string) $formId) ?>">
+                    Workspace Personal
+                    <input class="<?= $inputClass ?>" type="text" name="personal_workspace_name" value="<?= esc($personalWorkspaceName) ?>" data-personal-invite-required="<?= esc((string) $formId) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    Status Workspace
+                    <select class="<?= $inputClass ?>" name="is_workspace_deactivated" data-pro-required="<?= esc((string) $formId) ?>">
+                        <option value="0" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0 ? 'selected' : '' ?>>Aktif</option>
+                        <option value="1" <?= ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1 ? 'selected' : '' ?>>Deactivated</option>
+                    </select>
+                </label>
+                <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    Tanggal Langganan
+                    <input class="<?= $inputClass ?>" type="datetime-local" name="subscribed_at" value="<?= esc(isset($subscription['subscribed_at']) && $subscription['subscribed_at'] ? date('Y-m-d\\TH:i', strtotime((string) $subscription['subscribed_at'])) : '') ?>" data-pro-required="<?= esc((string) $formId) ?>">
+                </label>
+                <label class="<?= $labelClass ?> <?= $isWorkspace ? '' : 'hidden' ?>" data-pro-only="<?= esc((string) $formId) ?>">
+                    Durasi Satu Bulan?
+                    <select class="<?= $inputClass ?>" name="is_one_month_duration" data-pro-required="<?= esc((string) $formId) ?>" data-one-month-select="<?= esc((string) $formId) ?>">
+                        <option value="1" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 1 ? 'selected' : '' ?>>Ya</option>
+                        <option value="0" <?= ((int) ($subscription['is_one_month_duration'] ?? 0)) === 0 ? 'selected' : '' ?>>Tidak</option>
+                    </select>
+                </label>
+            </div>
+            <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+                <?= $isWorkspace
+                    ? 'Jenis akun workspace saat ini: ' . esc($proTypeLabel)
+                    : 'Akun ini bertipe free. Anda bisa ubah ke Pro/Plus dari form ini jika diperlukan.' ?>
+            </div>
+            <?php if ($showPersonalWorkspace): ?>
                 <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                    Jenis akun workspace saat ini: <?= esc($isWorkspace ? $proTypeLabel : '-') ?>
-                </div>
-                <?php if ($showPersonalWorkspace): ?>
-                    <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                        Workspace personal: <?= esc($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') ?>
-                    </div>
-                <?php endif; ?>
-                <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
-            </form>
-
-            <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
-                <div class="flex flex-wrap gap-2">
-                    <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
-                        <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
-                    </form>
-                    <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/deactivate" onsubmit="return confirm('Ubah status workspace ini menjadi deactivated?')">
-                        <button class="<?= $buttonDanger ?>" type="submit">Set Deactivated</button>
-                    </form>
+                    Workspace personal: <?= esc($personalWorkspaceName !== '' ? $personalWorkspaceName : '-') ?>
                 </div>
             <?php endif; ?>
+            <button class="<?= $buttonPrimary ?>" type="submit">Perbarui Subscription</button>
+        </form>
 
-            <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
-                <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
-                    <?php if ($accountType === 'plus'): ?>
+        <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 0): ?>
+            <div class="flex flex-wrap gap-2">
+                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/renew" onsubmit="return confirm('Perpanjang subscription ini otomatis +1 bulan?')">
+                    <button class="<?= $buttonSecondary ?>" type="submit">Perpanjang Subscription +1 Bulan (Auto)</button>
+                </form>
+                <form method="post" action="/subscriptions/<?= esc((string) $subscription['id']) ?>/deactivate" onsubmit="return confirm('Ubah status workspace ini menjadi deactivated?')">
+                    <button class="<?= $buttonDanger ?>" type="submit">Set Deactivated</button>
+                </form>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($isWorkspace && ((int) ($subscription['is_workspace_deactivated'] ?? 0)) === 1): ?>
+            <section class="rounded-md border border-[rgba(38,37,30,0.14)] bg-surface300 p-3 space-y-2">
+                <?php if ($accountType === 'plus'): ?>
                         <h4 class="text-[20px]">Update Akun Plus Deactivated</h4>
                         <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
                             Jika akun plus lama sudah deactivated, Anda bisa langsung update data akun + buat subscription plus pengganti tanpa hapus akun dari awal.
@@ -270,7 +271,7 @@ $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
 
                             <button class="<?= $buttonPrimary ?>" type="submit">Update Akun Plus & Buat Subscription Baru</button>
                         </form>
-                    <?php else: ?>
+                <?php else: ?>
                         <h4 class="text-[20px]">Buat Workspace Baru</h4>
                         <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
                             Workspace ini sudah deactivated. Buat workspace pengganti, sementara data lama tetap tersimpan sebagai histori.
@@ -317,17 +318,8 @@ $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
 
                             <button class="<?= $buttonPrimary ?>" type="submit">Simpan Workspace Baru</button>
                         </form>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
-        <?php else: ?>
-            <?php $freePersonalWorkspace = trim((string) ($subscription['personal_workspace_name'] ?? '')); ?>
-            <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                Akun free tidak menggunakan form subscription manual.
-            </div>
-            <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                Workspace personal: <?= esc($freePersonalWorkspace !== '' ? $freePersonalWorkspace : '-') ?>
-            </div>
+                <?php endif; ?>
+            </section>
         <?php endif; ?>
 
         <div class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
