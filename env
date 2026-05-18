@@ -67,3 +67,11 @@
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+#--------------------------------------------------------------------
+# 9ROUTER INTEGRATION
+#--------------------------------------------------------------------
+
+# router.logPath = /path/to/9router.log
+# router.provider = 9router
+# router.ingestKey = change-me-for-production ; opsional (sangat direkomendasikan untuk production)

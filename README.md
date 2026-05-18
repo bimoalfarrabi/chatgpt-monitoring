@@ -1,6 +1,6 @@
 # ChatGPT Subscription Monitoring
 
-Proyek web berbasis **CodeIgniter 4** untuk monitoring akun + lifecycle subscription/invite, usage per subscription, dan reminder Telegram.
+Proyek web berbasis **CodeIgniter 4** untuk monitoring akun + lifecycle subscription/invite, observability usage 9router, dan reminder Telegram.
 
 Dokumen referensi yang diimplementasikan:
 - `docs/PRD_subscription.md`
@@ -9,6 +9,8 @@ Dokumen referensi yang diimplementasikan:
 - `docs/UI_WIREFRAME.md`
 - `docs/IMPLEMENTATION_PLAN_subscription.md`
 - `docs/TELEGRAM_SETUP.md`
+- `docs/STRUKTUR_DAN_JEROAN_WEB.md`
+- `docs/DOKUMENTASI_INTEGRASI_9ROUTER_GPT_TRACKER.md`
 
 ## Stack
 - PHP 8.2+ (lokal: `/opt/lampp/bin/php`)
@@ -22,11 +24,14 @@ Dokumen referensi yang diimplementasikan:
 - Halaman profile user (update nama, username, email, dan password)
 - CRUD Accounts
 - CRUD Subscriptions (relasi ke account)
-- Usage per subscription (`5h` dan `weekly`)
-- History perubahan usage
+- Ringkasan usage 9router per email akun (`24 jam` dan `7 hari`)
 - Dashboard monitoring status invite (`Active`, `Expiring Soon`, `Expired`)
 - Telegram settings + test message (per user login)
 - Command reminder: `reminders:subscriptions`
+- 9router raw usage collector (`router:push-usage`, alias: `router:collect-usage`, `router:sync-accounts`)
+- 9router analytics CLI (`router:analytics-summary`)
+- 9router shipper endpoint (`POST /api/router/ingest`) + script lokal `scripts/router_log_shipper.php`
+- 9router account session analytics (`ai_router_account_sessions`) + ringkasan API `GET /api/router/analytics/summary`
 
 ## Setup Lokal (XAMPP + MySQL)
 1. Masuk folder project:
@@ -93,21 +98,23 @@ Catatan autentikasi:
 - `PUT /api/subscriptions/{id}`
 - `DELETE /api/subscriptions/{id}`
 
-### Account Usage
-- `POST /api/account-usages/{id}/update`
-
-Body contoh:
-```json
-{
-  "remaining_percent": 70,
-  "reset_at": "2026-04-20 14:00:00"
-}
-```
-
 ### Telegram
 - `POST /api/telegram/test`
 - `GET /api/telegram/settings`
 - `PUT /api/telegram/settings`
+
+### Router Analytics
+- `GET /api/router/analytics/summary?provider=codex&days=30`
+- `GET /api/router/analytics/charts?provider=codex&days=30&top=10`
+
+CLI summary:
+```bash
+/opt/lampp/bin/php spark router:analytics-summary --provider=codex --days=30
+```
+
+Dashboard:
+- Halaman `/` punya panel **Grafik Observability 9router** (token harian, aktivitas per jam, usage per akun, distribusi model, cache ratio, latency) dari endpoint `api/router/analytics/charts`.
+- Card/tabel usage di dashboard dan halaman detail akun juga memakai sumber data 9router (bukan input manual lama).
 
 ## Reminder Command
 Kirim reminder otomatis untuk subscription `expiring_soon` dan `expired`:

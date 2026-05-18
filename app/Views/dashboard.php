@@ -4,11 +4,13 @@
 <?php
 $totalSubscription = count($subscriptions);
 $freeSubscriptions = is_array($freeSubscriptions ?? null) ? $freeSubscriptions : [];
+$routerUsageByEmail = is_array($routerUsageByEmail ?? null) ? $routerUsageByEmail : [];
 $totalFreeAccount = count($freeSubscriptions);
 $butuhTindakan = 0;
-$usageKritis5h = 0;
-$usageKritisWeekly = 0;
-$usageKritisWeeklyFree = 0;
+$routerActive24h = 0;
+$routerTotalRequests24h = 0;
+$routerTotalTokens24h = 0;
+$routerTopAccount7d = ['email' => '-', 'tokens_7d' => 0];
 
 $urutExpired = $subscriptions;
 usort($urutExpired, static function (array $a, array $b): int {
@@ -20,39 +22,48 @@ usort($urutExpired, static function (array $a, array $b): int {
 });
 $terdekatExpired = array_slice($urutExpired, 0, 5);
 $urutFreeWeekly = $freeSubscriptions;
-usort($urutFreeWeekly, static function (array $a, array $b): int {
-    $aPercent = (int) ($a['usages']['weekly']['remaining_percent'] ?? 0);
-    $bPercent = (int) ($b['usages']['weekly']['remaining_percent'] ?? 0);
-    return $aPercent <=> $bPercent;
+usort($urutFreeWeekly, static function (array $a, array $b) use ($accountMap, $routerUsageByEmail): int {
+    $emailA = strtolower(trim((string) ($accountMap[$a['account_id']]['email'] ?? '')));
+    $emailB = strtolower(trim((string) ($accountMap[$b['account_id']]['email'] ?? '')));
+    $tokensA = (int) ($routerUsageByEmail[$emailA]['tokens_7d'] ?? 0);
+    $tokensB = (int) ($routerUsageByEmail[$emailB]['tokens_7d'] ?? 0);
+
+    return $tokensB <=> $tokensA;
 });
 
 foreach ($subscriptions as $subscription) {
     if (in_array($subscription['status'], ['expiring_soon', 'expired', 'deactivated'], true)) {
         $butuhTindakan++;
     }
-
-    $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
-    $proType = \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? ''));
-    $isPersonalInvite = $accountType === 'pro' && $proType === 'personal_invite';
-
-    $p5 = (int) (($subscription['usages']['5h']['remaining_percent'] ?? 100));
-    $pwSeller = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 100));
-    $pwPersonal = (int) (($subscription['usages']['weekly_personal']['remaining_percent'] ?? 100));
-
-    if ($p5 <= 20) {
-        $usageKritis5h++;
-    }
-
-    $isWeeklyCritical = $pwSeller <= 20 || ($isPersonalInvite && $pwPersonal <= 20);
-    if ($isWeeklyCritical) {
-        $usageKritisWeekly++;
-    }
 }
 
-foreach ($freeSubscriptions as $subscription) {
-    $pwWeekly = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 100));
-    if ($pwWeekly <= 20) {
-        $usageKritisWeeklyFree++;
+foreach ($accountMap as $account) {
+    $email = strtolower(trim((string) ($account['email'] ?? '')));
+    if ($email === '') {
+        continue;
+    }
+
+    $usage = $routerUsageByEmail[$email] ?? null;
+    if (! is_array($usage)) {
+        continue;
+    }
+
+    $requests24h = (int) ($usage['requests_24h'] ?? 0);
+    $tokens24h = (int) ($usage['tokens_24h'] ?? 0);
+    $tokens7d = (int) ($usage['tokens_7d'] ?? 0);
+
+    if ($requests24h > 0) {
+        $routerActive24h++;
+    }
+
+    $routerTotalRequests24h += $requests24h;
+    $routerTotalTokens24h += $tokens24h;
+
+    if ($tokens7d > (int) $routerTopAccount7d['tokens_7d']) {
+        $routerTopAccount7d = [
+            'email' => $email,
+            'tokens_7d' => $tokens7d,
+        ];
     }
 }
 
@@ -66,50 +77,89 @@ $statusClasses = [
 $cardBase = 'rounded-lg border border-[rgba(38,37,30,0.1)] p-4 shadow-[rgba(0,0,0,0.02)_0_0_16px,rgba(0,0,0,0.008)_0_0_8px] transition-[box-shadow,border-color] duration-200 hover:border-[rgba(38,37,30,0.2)] hover:shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]';
 $tableWrap = 'overflow-visible';
 $sectionTitle = 'mb-2 space-y-2';
-$chartDateDefault = date('Y-m-d');
 ?>
 
 <section class="<?= $sectionTitle ?>">
     <h1>Dasbor Monitoring Subscription</h1>
     <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Pantau kesehatan akun, status akses workspace, dan sisa kuota pemakaian dalam satu tampilan. Tanggal berakhir dihitung otomatis dari tanggal langganan + durasi satu bulan (jika dipilih).</p>
-    <p class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]">Endpoint cepat: /api/accounts · /api/subscriptions · /api/account-usages/{id}/update · /api/telegram/test</p>
+    <p class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]">Endpoint cepat: /api/accounts · /api/subscriptions · /api/router/analytics/summary · /api/router/analytics/charts · /api/telegram/test</p>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
-    <h2>Grafik Penggunaan Seluruh Akun</h2>
+    <h2>Grafik Observability 9router</h2>
     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-        Sumbu vertikal menunjukkan persentase usage, sumbu horizontal menunjukkan waktu update pada tanggal terpilih.
+        Grafik ini membaca event usage 9router (input/output token, cache, reasoning, latency, dan distribusi akun/model).
     </p>
     <div class="flex flex-wrap items-end gap-2">
         <label class="font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]">
-            Tanggal Data
-            <input
-                type="date"
-                value="<?= esc($chartDateDefault) ?>"
-                data-dashboard-chart-date
-                class="mt-1 w-[220px] rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color,color] duration-150 focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]"
+            Provider
+            <select
+                data-router-provider
+                class="mt-1 w-[160px] rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color,color] duration-150 focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]"
             >
+                <option value="">All</option>
+                <option value="codex">codex</option>
+                <option value="openai">openai</option>
+                <option value="9router">9router</option>
+            </select>
         </label>
-        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-dashboard-chart-caption>
-            Menampilkan data berdasarkan tanggal terpilih.
+        <label class="font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]">
+            Rentang
+            <select
+                data-router-days
+                class="mt-1 w-[140px] rounded-md border border-[rgba(38,37,30,0.22)] bg-surface200 px-3 py-2 font-ui text-[13px] leading-[1.45] text-[rgba(38,37,30,0.9)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] outline-none transition-[border-color,box-shadow,background-color,color] duration-150 focus:border-[rgba(38,37,30,0.38)] focus:bg-[#f8f7f3] focus:shadow-[rgba(0,0,0,0.1)_0_4px_12px]"
+            >
+                <option value="7">7 hari</option>
+                <option value="14">14 hari</option>
+                <option value="30" selected>30 hari</option>
+                <option value="60">60 hari</option>
+                <option value="90">90 hari</option>
+            </select>
+        </label>
+        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-router-chart-caption>
+            Memuat observability 9router...
         </p>
     </div>
     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
-            <h3>Usage Weekly Seluruh Akun</h3>
-            <div
-                id="dashboard-usage-chart-weekly"
-                data-chart-endpoint="/usage-chart/dashboard"
-                data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
-                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
-            ></div>
+            <h3>Total Token Harian (Input + Output)</h3>
+            <div data-router-daily-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
         </article>
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
-            <h3>Usage 5h Akun Workspace</h3>
-            <div
-                id="dashboard-usage-chart-5h"
-                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
-            ></div>
+            <h3>Aktivitas Request per Jam</h3>
+            <div data-router-hourly-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+    </div>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3 class="flex items-center justify-between gap-2">
+                <span>Cache Ratio Harian (%)</span>
+                <span
+                    data-router-cache-badge
+                    class="inline-flex items-center rounded-full border px-2 py-[3px] font-display text-[12px] leading-[1.4] border-[rgba(38,37,30,0.14)] text-[rgba(38,37,30,0.72)] bg-[rgba(38,37,30,0.06)]"
+                >Loading</span>
+            </h3>
+            <div data-router-cache-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3 class="flex items-center justify-between gap-2">
+                <span>Latency Harian (Avg ms)</span>
+                <span
+                    data-router-latency-badge
+                    class="inline-flex items-center rounded-full border px-2 py-[3px] font-display text-[12px] leading-[1.4] border-[rgba(38,37,30,0.14)] text-[rgba(38,37,30,0.72)] bg-[rgba(38,37,30,0.06)]"
+                >Loading</span>
+            </h3>
+            <div data-router-latency-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+    </div>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3>Usage per Akun</h3>
+            <div data-router-account-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+            <h3>Distribusi per Model</h3>
+            <div data-router-model-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"></div>
         </article>
     </div>
 </section>
@@ -157,7 +207,7 @@ $chartDateDefault = date('Y-m-d');
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Monitoring Detail Seluruh Subscription</h2>
-    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Tampilan lengkap untuk evaluasi status invite, sisa kuota 5 jam, dan kuota mingguan.</p>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Tampilan lengkap untuk evaluasi status invite dan usage 9router per akun (berdasarkan email).</p>
     <div class="<?= $tableWrap ?>">
         <table class="data-table-cards">
             <thead>
@@ -168,8 +218,8 @@ $chartDateDefault = date('Y-m-d');
                 <th>Tipe Subscription</th>
                 <th>Berakhir (Otomatis)</th>
                 <th>Status</th>
-                <th>Usage 5 Jam</th>
-                <th>Usage Mingguan</th>
+                <th>Usage 9router 24 Jam</th>
+                <th>Usage 9router 7 Hari</th>
                 <th>Aksi</th>
             </tr>
             </thead>
@@ -183,6 +233,8 @@ $chartDateDefault = date('Y-m-d');
             <?php foreach ($subscriptions as $subscription): ?>
                 <?php $account = $accountMap[$subscription['account_id']] ?? null; ?>
                 <?php $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active']; ?>
+                <?php $emailKey = strtolower(trim((string) ($account['email'] ?? ''))); ?>
+                <?php $routerUsage = $routerUsageByEmail[$emailKey] ?? []; ?>
                 <tr>
                     <td><?= esc($account['account_name'] ?? '-') ?></td>
                     <td><?= esc($account['email'] ?? '-') ?></td>
@@ -195,34 +247,24 @@ $chartDateDefault = date('Y-m-d');
                         </span>
                     </td>
                     <td>
-                        <?php $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free')); ?>
-                        <?php $isWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($accountType); ?>
-                        <?php $isPersonalInvite = $accountType === 'pro' && \App\Services\SubscriptionStatusService::normalizeProAccountType((string) ($subscription['pro_account_type'] ?? '')) === 'personal_invite'; ?>
-                        <?php if (! $isWorkspace): ?>
-                            <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">N/A</span>
+                        <?php $tokens24h = (int) ($routerUsage['tokens_24h'] ?? 0); ?>
+                        <?php $requests24h = (int) ($routerUsage['requests_24h'] ?? 0); ?>
+                        <?php if ($tokens24h <= 0 && $requests24h <= 0): ?>
+                            <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data</span>
                         <?php else: ?>
-                            <?php $usage5h = $subscription['usages']['5h'] ?? null; ?>
-                            <?php $p5 = (int) ($usage5h['remaining_percent'] ?? 0); ?>
-                            <span class="font-ui text-[13px]"><?= esc((string) $p5) ?>%</span>
-                            <?php $progressColor5 = $p5 > 60 ? 'bg-success' : ($p5 > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor5 ?>" style="width: <?= esc((string) $p5) ?>%"></span></div>
+                            <div class="font-ui text-[13px] text-[rgba(38,37,30,0.82)]"><?= esc(number_format($tokens24h)) ?> token</div>
+                            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]"><?= esc(number_format($requests24h)) ?> request</div>
                         <?php endif; ?>
                     </td>
                     <td>
-                        <?php $usageWSeller = $subscription['usages']['weekly'] ?? null; ?>
-                        <?php $pwSeller = (int) ($usageWSeller['remaining_percent'] ?? 0); ?>
-                        <?php $progressColorWSeller = $pwSeller > 60 ? 'bg-success' : ($pwSeller > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                        <div class="font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]"><?= esc($accountType === 'plus' ? 'Personal' : ($isPersonalInvite ? 'Seller' : 'Weekly')) ?></div>
-                        <span class="font-ui text-[13px]"><?= esc((string) $pwSeller) ?>%</span>
-                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWSeller ?>" style="width: <?= esc((string) $pwSeller) ?>%"></span></div>
-
-                        <?php if ($isPersonalInvite): ?>
-                            <?php $usageWPersonal = $subscription['usages']['weekly_personal'] ?? null; ?>
-                            <?php $pwPersonal = (int) ($usageWPersonal['remaining_percent'] ?? 0); ?>
-                            <?php $progressColorWPersonal = $pwPersonal > 60 ? 'bg-success' : ($pwPersonal > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                            <div class="mt-2 font-ui text-[12px] leading-[1.35] text-[rgba(38,37,30,0.66)]">Personal</div>
-                            <span class="font-ui text-[13px]"><?= esc((string) $pwPersonal) ?>%</span>
-                            <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWPersonal ?>" style="width: <?= esc((string) $pwPersonal) ?>%"></span></div>
+                        <?php $tokens7d = (int) ($routerUsage['tokens_7d'] ?? 0); ?>
+                        <?php $requests7d = (int) ($routerUsage['requests_7d'] ?? 0); ?>
+                        <?php $cacheRatio7d = (float) ($routerUsage['cache_ratio_7d'] ?? 0); ?>
+                        <?php if ($tokens7d <= 0 && $requests7d <= 0): ?>
+                            <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data</span>
+                        <?php else: ?>
+                            <div class="font-ui text-[13px] text-[rgba(38,37,30,0.82)]"><?= esc(number_format($tokens7d)) ?> token</div>
+                            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]"><?= esc(number_format($requests7d)) ?> request · cache <?= esc(number_format($cacheRatio7d, 1)) ?>%</div>
                         <?php endif; ?>
                     </td>
                     <td>
@@ -239,7 +281,7 @@ $chartDateDefault = date('Y-m-d');
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
     <h2>Monitoring Free Account</h2>
-    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Khusus akun free dengan fokus utama pada sisa kuota weekly.</p>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Khusus akun free dengan fokus utama pada usage 9router 7 hari.</p>
     <div class="<?= $tableWrap ?>">
         <table class="data-table-cards">
             <thead>
@@ -248,7 +290,7 @@ $chartDateDefault = date('Y-m-d');
                 <th>Email</th>
                 <th>Tipe Subscription</th>
                 <th>Status</th>
-                <th>Usage Weekly</th>
+                <th>Usage 9router 7 Hari</th>
                 <th>Aksi</th>
             </tr>
             </thead>
@@ -262,16 +304,23 @@ $chartDateDefault = date('Y-m-d');
             <?php foreach ($urutFreeWeekly as $subscription): ?>
                 <?php $account = $accountMap[$subscription['account_id']] ?? null; ?>
                 <?php $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active']; ?>
-                <?php $pwWeekly = (int) (($subscription['usages']['weekly']['remaining_percent'] ?? 0)); ?>
-                <?php $progressColorWeekly = $pwWeekly > 60 ? 'bg-success' : ($pwWeekly > 30 ? 'bg-gold' : 'bg-danger'); ?>
+                <?php $emailKey = strtolower(trim((string) ($account['email'] ?? ''))); ?>
+                <?php $routerUsage = $routerUsageByEmail[$emailKey] ?? []; ?>
+                <?php $tokens7d = (int) ($routerUsage['tokens_7d'] ?? 0); ?>
+                <?php $requests7d = (int) ($routerUsage['requests_7d'] ?? 0); ?>
+                <?php $cacheRatio7d = (float) ($routerUsage['cache_ratio_7d'] ?? 0); ?>
                 <tr>
                     <td><?= esc($account['account_name'] ?? '-') ?></td>
                     <td><?= esc($account['email'] ?? '-') ?></td>
                     <td><?= esc($subscription['subscription_type'] ?? 'Free Weekly') ?></td>
                     <td><span class="<?= $statusClass ?>"><?= esc(\App\Services\SubscriptionStatusService::humanize((string) ($subscription['status'] ?? 'active'))) ?></span></td>
                     <td>
-                        <span class="font-ui text-[13px]"><?= esc((string) $pwWeekly) ?>%</span>
-                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColorWeekly ?>" style="width: <?= esc((string) $pwWeekly) ?>%"></span></div>
+                        <?php if ($tokens7d <= 0 && $requests7d <= 0): ?>
+                            <span class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Belum ada data</span>
+                        <?php else: ?>
+                            <div class="font-ui text-[13px] text-[rgba(38,37,30,0.82)]"><?= esc(number_format($tokens7d)) ?> token</div>
+                            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]"><?= esc(number_format($requests7d)) ?> request · cache <?= esc(number_format($cacheRatio7d, 1)) ?>%</div>
+                        <?php endif; ?>
                     </td>
                     <td>
                         <?php if ($account): ?>
@@ -333,18 +382,18 @@ $chartDateDefault = date('Y-m-d');
             </div>
 
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#9fbbe0_40%,transparent_60%)] text-[#2d4f7d] bg-[color-mix(in_srgb,#9fbbe0_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">5H Kritis <= 20%</span>
-                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritis5h) ?></strong> subscription.</span>
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#9fbbe0_40%,transparent_60%)] text-[#2d4f7d] bg-[color-mix(in_srgb,#9fbbe0_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">9router Aktif 24 Jam</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc(number_format($routerActive24h)) ?></strong> akun mengirim request dalam 24 jam terakhir.</span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#c0a8dd_42%,transparent_58%)] text-[#5f4a83] bg-[color-mix(in_srgb,#c0a8dd_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Weekly Kritis <= 20%</span>
-                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritisWeekly) ?></strong> subscription.</span>
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#c0a8dd_42%,transparent_58%)] text-[#5f4a83] bg-[color-mix(in_srgb,#c0a8dd_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Traffic 24 Jam</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc(number_format($routerTotalTokens24h)) ?></strong> token dari <strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc(number_format($routerTotalRequests24h)) ?></strong> request.</span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-2.5 py-2">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#8fb8aa_42%,transparent_58%)] text-[#3f6357] bg-[color-mix(in_srgb,#8fb8aa_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Free Weekly <= 20%</span>
-                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $usageKritisWeeklyFree) ?></strong> free account.</span>
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] border border-[color-mix(in_srgb,#8fb8aa_42%,transparent_58%)] text-[#3f6357] bg-[color-mix(in_srgb,#8fb8aa_20%,#f2f1ed_80%)] font-display text-[14px] leading-[1.5]">Akun Tertinggi 7 Hari</span>
+                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.64)]"><strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc((string) $routerTopAccount7d['email']) ?></strong> dengan <strong class="font-semibold text-[rgba(38,37,30,0.82)]"><?= esc(number_format((int) ($routerTopAccount7d['tokens_7d'] ?? 0))) ?></strong> token.</span>
             </div>
         </div>
     </article>
@@ -363,26 +412,33 @@ $chartDateDefault = date('Y-m-d');
             </div>
             <div class="relative pl-[18px] pt-[3px] pb-[10px] before:content-[''] before:absolute before:left-[-1px] before:top-2 before:w-2 before:h-2 before:rounded-full before:border before:border-[rgba(38,37,30,0.1)] before:bg-[#9fbbe0]">
                 <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.65)]">Pemeriksaan</div>
-                <div class="font-display text-[15px] leading-[1.52]">Cek usage 5 jam dan mingguan, terutama yang mendekati nol.</div>
+                <div class="font-display text-[15px] leading-[1.52]">Cek usage 9router 24 jam dan 7 hari per akun.</div>
             </div>
             <div class="relative pl-[18px] pt-[3px] pb-[10px] before:content-[''] before:absolute before:left-[-1px] before:top-2 before:w-2 before:h-2 before:rounded-full before:border before:border-[rgba(38,37,30,0.1)] before:bg-[#c0a8dd]">
                 <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.65)]">Tindakan</div>
-                <div class="font-display text-[15px] leading-[1.52]">Perbarui data usage / subscription lalu kirim reminder Telegram.</div>
+                <div class="font-display text-[15px] leading-[1.52]">Perbarui data subscription bila perlu, lalu kirim reminder Telegram.</div>
             </div>
         </div>
     </article>
 </section>
 <script>
 (() => {
-    const weeklyRoot = document.getElementById('dashboard-usage-chart-weekly');
-    const fiveHourRoot = document.getElementById('dashboard-usage-chart-5h');
-    const dateInput = document.querySelector('[data-dashboard-chart-date]');
-    const caption = document.querySelector('[data-dashboard-chart-caption]');
-    if (!weeklyRoot || !fiveHourRoot) {
+    const endpoint = '/api/router/analytics/charts';
+    const providerInput = document.querySelector('[data-router-provider]');
+    const daysInput = document.querySelector('[data-router-days]');
+    const caption = document.querySelector('[data-router-chart-caption]');
+    const dailyRoot = document.querySelector('[data-router-daily-chart]');
+    const hourlyRoot = document.querySelector('[data-router-hourly-chart]');
+    const cacheRoot = document.querySelector('[data-router-cache-chart]');
+    const cacheBadge = document.querySelector('[data-router-cache-badge]');
+    const latencyRoot = document.querySelector('[data-router-latency-chart]');
+    const latencyBadge = document.querySelector('[data-router-latency-badge]');
+    const accountRoot = document.querySelector('[data-router-account-chart]');
+    const modelRoot = document.querySelector('[data-router-model-chart]');
+
+    if (!providerInput || !daysInput || !dailyRoot || !hourlyRoot || !cacheRoot || !latencyRoot || !accountRoot || !modelRoot) {
         return;
     }
-
-    const endpoint = weeklyRoot.getAttribute('data-chart-endpoint') || '';
 
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -391,158 +447,245 @@ $chartDateDefault = date('Y-m-d');
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-    const toPercent = (value) => {
-        const numeric = Number(value);
+    const formatNumber = (value) => {
+        const numeric = Number(value ?? 0);
         if (!Number.isFinite(numeric)) {
-            return null;
+            return '0';
         }
 
-        return Math.max(0, Math.min(100, numeric));
+        return new Intl.NumberFormat('id-ID').format(Math.round(numeric));
     };
 
-    const toMinute = (value) => {
-        const numeric = Number(value);
+    const formatCompact = (value) => {
+        const numeric = Number(value ?? 0);
         if (!Number.isFinite(numeric)) {
+            return '0';
+        }
+
+        return new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(numeric);
+    };
+
+    const formatDecimal = (value, digits = 2) => {
+        const numeric = Number(value ?? 0);
+        if (!Number.isFinite(numeric)) {
+            return '0';
+        }
+
+        return new Intl.NumberFormat('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: digits,
+        }).format(numeric);
+    };
+
+    const formatLatencyCompact = (value) => {
+        const numeric = Number(value ?? 0);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return '0ms';
+        }
+
+        if (numeric >= 1000) {
+            return `${formatDecimal(numeric / 1000, 1)}s`;
+        }
+
+        return `${formatDecimal(numeric, 0)}ms`;
+    };
+
+    const averageSeriesValue = (rows, key, ignoreZero = false) => {
+        const data = Array.isArray(rows) ? rows : [];
+        const values = data
+            .map((row) => Number(row?.[key] ?? 0))
+            .filter((value) => Number.isFinite(value) && value >= 0 && (!ignoreZero || value > 0));
+
+        if (values.length === 0) {
             return 0;
         }
 
-        return Math.max(0, Math.min(1439, Math.round(numeric)));
+        const total = values.reduce((sum, value) => sum + value, 0);
+        return total / values.length;
     };
 
-    const formatMinute = (minute) => {
-        const safeMinute = toMinute(minute);
-        const hour = String(Math.floor(safeMinute / 60)).padStart(2, '0');
-        const minutes = String(safeMinute % 60).padStart(2, '0');
-        return `${hour}:${minutes}`;
+    const cacheVisual = (avgRatio) => {
+        if (avgRatio >= 80) {
+            return { color: '#1f8a65', note: `Healthy (${formatDecimal(avgRatio, 2)}%)` };
+        }
+        if (avgRatio >= 50) {
+            return { color: '#c08532', note: `Moderate (${formatDecimal(avgRatio, 2)}%)` };
+        }
+
+        return { color: '#cf2d56', note: `Low (${formatDecimal(avgRatio, 2)}%)` };
     };
 
-    const renderTimeSeriesChart = (root, datasets, emptyMessage) => {
-        const normalized = (Array.isArray(datasets) ? datasets : [])
-            .map((item) => {
-                const points = (Array.isArray(item?.points) ? item.points : [])
-                    .map((point) => {
-                        const percent = toPercent(point?.percent);
-                        if (percent === null) {
-                            return null;
-                        }
+    const latencyVisual = (avgLatencyMs) => {
+        if (avgLatencyMs <= 0) {
+            return { color: '#2f6db5', note: 'No latency data', label: 'No Data', tone: 'neutral' };
+        }
+        if (avgLatencyMs <= 8000) {
+            return { color: '#1f8a65', note: `Fast (${formatDecimal(avgLatencyMs, 0)}ms)`, label: 'Fast', tone: 'good' };
+        }
+        if (avgLatencyMs <= 15000) {
+            return { color: '#c08532', note: `Moderate (${formatDecimal(avgLatencyMs, 0)}ms)`, label: 'Moderate', tone: 'warn' };
+        }
 
-                        const minute = toMinute(point?.minute);
-                        return {
-                            minute,
-                            percent,
-                            time: typeof point?.time === 'string' && point.time !== '' ? point.time : formatMinute(minute),
-                            at: String(point?.at ?? ''),
-                        };
-                    })
-                    .filter((point) => point !== null);
+        return { color: '#cf2d56', note: `Slow (${formatDecimal(avgLatencyMs, 0)}ms)`, label: 'Slow', tone: 'bad' };
+    };
 
-                if (points.length === 0) {
-                    return null;
-                }
+    const cacheVisualTone = (avgRatio) => {
+        if (avgRatio >= 80) {
+            return { label: 'Healthy', tone: 'good' };
+        }
+        if (avgRatio >= 50) {
+            return { label: 'Moderate', tone: 'warn' };
+        }
 
-                return {
-                    label: String(item?.label ?? 'Akun'),
-                    color: String(item?.color ?? '#2f6db5'),
-                    accountType: String(item?.accountType ?? 'free'),
-                    points,
-                };
-            })
-            .filter((item) => item !== null);
+        return { label: 'Low', tone: 'bad' };
+    };
 
-        if (normalized.length === 0) {
+    const badgeToneClass = (tone) => {
+        if (tone === 'good') {
+            return 'border-[color-mix(in_srgb,#1f8a65_40%,transparent_60%)] text-[#165a44] bg-[color-mix(in_srgb,#1f8a65_16%,#f2f1ed_84%)]';
+        }
+        if (tone === 'warn') {
+            return 'border-[color-mix(in_srgb,#c08532_42%,transparent_58%)] text-[#8f4d10] bg-[color-mix(in_srgb,#c08532_22%,#f2f1ed_78%)]';
+        }
+        if (tone === 'bad') {
+            return 'border-[color-mix(in_srgb,#cf2d56_42%,transparent_58%)] text-[#8f1f3c] bg-[color-mix(in_srgb,#cf2d56_16%,#f2f1ed_84%)]';
+        }
+
+        return 'border-[rgba(38,37,30,0.14)] text-[rgba(38,37,30,0.72)] bg-[rgba(38,37,30,0.06)]';
+    };
+
+    const setBadge = (badgeNode, label, tone = 'neutral') => {
+        if (!badgeNode) {
+            return;
+        }
+
+        const tones = ['good', 'warn', 'bad', 'neutral'];
+        tones.forEach((item) => {
+            const classes = badgeToneClass(item).split(' ');
+            classes.forEach((className) => badgeNode.classList.remove(className));
+        });
+
+        badgeToneClass(tone).split(' ').forEach((className) => badgeNode.classList.add(className));
+        badgeNode.textContent = label;
+    };
+
+    const renderBarList = (root, rows, valueKey, labelKey, emptyMessage, noteBuilder = null) => {
+        const data = Array.isArray(rows) ? rows : [];
+        if (data.length === 0) {
             root.innerHTML = `<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">${escapeHtml(emptyMessage)}</p>`;
             return;
         }
 
-        const width = 920;
-        const height = 350;
-        const margin = { top: 20, right: 18, bottom: 58, left: 42 };
-        const plotWidth = width - margin.left - margin.right;
-        const plotHeight = height - margin.top - margin.bottom;
-        const yFromPercent = (percent) => margin.top + ((100 - percent) / 100) * plotHeight;
-        const xFromMinute = (minute) => margin.left + (toMinute(minute) / 1439) * plotWidth;
-        const ticks = [0, 20, 40, 60, 80, 100];
-        const timeTicks = [0, 360, 720, 1080, 1439];
+        const maxValue = Math.max(...data.map((item) => Number(item?.[valueKey] ?? 0)), 1);
+        const items = data.map((item) => {
+            const label = String(item?.[labelKey] ?? '-');
+            const value = Number(item?.[valueKey] ?? 0);
+            const width = Math.max(2, Math.round((value / maxValue) * 100));
+            const note = typeof noteBuilder === 'function' ? noteBuilder(item) : '';
 
-        const gridLines = ticks.map((tick) => {
-            const y = yFromPercent(tick);
-            return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(38,37,30,0.14)" stroke-width="1" />
-                <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${tick}%</text>`;
-        }).join('');
-
-        const xAxisTicks = timeTicks.map((minute) => {
-            const x = xFromMinute(minute);
-            return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.1)" stroke-width="1" />
-                <text x="${x}" y="${height - margin.bottom + 22}" text-anchor="middle" font-size="11" fill="rgba(38,37,30,0.62)">${formatMinute(minute)}</text>`;
-        }).join('');
-
-        const seriesSvg = normalized.map((item) => {
-            const pathD = item.points
-                .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFromMinute(point.minute)} ${yFromPercent(point.percent)}`)
-                .join(' ');
-
-            const line = `<path d="${pathD}" fill="none" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
-                <title>${escapeHtml(item.label)}</title>
-            </path>`;
-
-            const circles = item.points.map((point) => `<circle cx="${xFromMinute(point.minute)}" cy="${yFromPercent(point.percent)}" r="3.6" fill="${item.color}" stroke="white" stroke-width="1.3">
-                <title>${escapeHtml(item.label)} · ${escapeHtml(point.time)} · ${point.percent}%</title>
-            </circle>`).join('');
-
-            return `${line}${circles}`;
-        }).join('');
-
-        const legendItems = normalized.map((item) => {
-            const lastPoint = item.points[item.points.length - 1];
-            const valueText = lastPoint ? `${lastPoint.time} · ${lastPoint.percent}%` : '-';
-
-            return `<li class="flex items-start gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-1.5">
-                <span class="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style="background:${escapeHtml(item.color)}"></span>
-                <span class="min-w-0">
-                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(item.label)}</span>
-                    <span class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(valueText)}</span>
-                </span>
+            return `<li class="space-y-1 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="truncate font-ui text-[12px] text-[rgba(38,37,30,0.82)]">${escapeHtml(label)}</span>
+                    <span class="font-mono text-[11px] text-[rgba(38,37,30,0.76)]">${formatCompact(value)}</span>
+                </div>
+                <div class="h-2 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200 overflow-hidden">
+                    <span class="block h-full rounded-full bg-[color-mix(in_srgb,#2f6db5_72%,#9fbbe0_28%)]" style="width:${width}%"></span>
+                </div>
+                ${note !== '' ? `<p class="font-mono text-[11px] text-[rgba(38,37,30,0.62)]">${escapeHtml(note)}</p>` : ''}
             </li>`;
         }).join('');
 
+        root.innerHTML = `<ul class="space-y-2">${items}</ul>`;
+    };
+
+    const renderSimpleLineChart = (root, rows, xKey, yKey, emptyMessage, color = '#2f6db5', valueFormatter = formatNumber, suffix = '', noteText = '') => {
+        const data = Array.isArray(rows) ? rows : [];
+        if (data.length === 0) {
+            root.innerHTML = `<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">${escapeHtml(emptyMessage)}</p>`;
+            return;
+        }
+
+        const width = 900;
+        const height = 280;
+        const margin = { top: 18, right: 16, bottom: 38, left: 44 };
+        const plotWidth = width - margin.left - margin.right;
+        const plotHeight = height - margin.top - margin.bottom;
+
+        const values = data.map((row) => Number(row?.[yKey] ?? 0)).filter((n) => Number.isFinite(n) && n >= 0);
+        const maxValue = Math.max(...values, 1);
+
+        const xFromIndex = (index) => margin.left + (index / Math.max(data.length - 1, 1)) * plotWidth;
+        const yFromValue = (value) => margin.top + (1 - (value / maxValue)) * plotHeight;
+
+        const path = data.map((row, index) => {
+            const value = Math.max(0, Number(row?.[yKey] ?? 0));
+            const x = xFromIndex(index);
+            const y = yFromValue(value);
+            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+
+        const circles = data.map((row, index) => {
+            const value = Math.max(0, Number(row?.[yKey] ?? 0));
+            const x = xFromIndex(index);
+            const y = yFromValue(value);
+            const label = String(row?.[xKey] ?? '');
+            return `<circle cx="${x}" cy="${y}" r="3" fill="${color}" stroke="white" stroke-width="1.2">
+                <title>${escapeHtml(label)} · ${valueFormatter(value)}${escapeHtml(suffix)}</title>
+            </circle>`;
+        }).join('');
+
+        const xTicks = data
+            .filter((_, index) => index === 0 || index === data.length - 1 || index % Math.max(1, Math.floor(data.length / 4)) === 0)
+            .map((row, index) => {
+                const sourceIndex = data.indexOf(row);
+                const x = xFromIndex(sourceIndex);
+                return `<text x="${x}" y="${height - 14}" text-anchor="middle" font-size="11" fill="rgba(38,37,30,0.62)">${escapeHtml(String(row?.[xKey] ?? ''))}</text>`;
+            }).join('');
+
         root.innerHTML = `
-            <div class="space-y-3">
+            <div class="space-y-2">
                 <div class="overflow-x-auto">
-                    <svg viewBox="0 0 ${width} ${height}" class="min-w-[720px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
-                        ${gridLines}
-                        ${xAxisTicks}
-                        ${seriesSvg}
-                        <text x="${margin.left + (plotWidth / 2)}" y="${height - margin.bottom + 40}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Waktu</text>
+                    <svg viewBox="0 0 ${width} ${height}" class="min-w-[700px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
+                        <line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" />
+                        <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.2)" />
+                        <path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" />
+                        ${circles}
+                        ${xTicks}
+                        <text x="${margin.left - 10}" y="${margin.top + 10}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${valueFormatter(maxValue)}${escapeHtml(suffix)}</text>
+                        <text x="${margin.left - 10}" y="${height - margin.bottom + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">0</text>
                     </svg>
                 </div>
-                <ul class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">${legendItems}</ul>
+                ${noteText !== '' ? `<p class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(noteText)}</p>` : ''}
             </div>
         `;
     };
 
-    const applyCaption = (dateText, weeklyCount, fiveHourCount) => {
+    const setLoading = (state) => {
+        [dailyRoot, hourlyRoot, cacheRoot, latencyRoot, accountRoot, modelRoot].forEach((node) => {
+            node.classList.toggle('opacity-70', state);
+            node.classList.toggle('pointer-events-none', state);
+        });
+    };
+
+    const updateCaption = (filters, dailyRows) => {
         if (!caption) {
             return;
         }
 
-        caption.textContent = `Tanggal data: ${dateText} · weekly ${weeklyCount} seri · 5h ${fiveHourCount} seri`;
+        const provider = String(filters?.provider ?? 'all');
+        const days = Number(filters?.days ?? 30);
+        const points = Array.isArray(dailyRows) ? dailyRows.length : 0;
+        caption.textContent = `Provider: ${provider} · rentang ${days} hari · titik harian ${points}`;
     };
 
-    const setChartLoading = (isLoading) => {
-        weeklyRoot.classList.toggle('opacity-70', isLoading);
-        weeklyRoot.classList.toggle('pointer-events-none', isLoading);
-        fiveHourRoot.classList.toggle('opacity-70', isLoading);
-        fiveHourRoot.classList.toggle('pointer-events-none', isLoading);
-    };
+    const loadRouterCharts = async () => {
+        const provider = String(providerInput.value || '');
+        const days = String(daysInput.value || '30');
+        const url = `${endpoint}?provider=${encodeURIComponent(provider)}&days=${encodeURIComponent(days)}&top=10`;
 
-    const loadChartByDate = async (dateValue) => {
-        if (!endpoint || !dateValue) {
-            return;
-        }
-
-        setChartLoading(true);
+        setLoading(true);
         try {
-            const response = await fetch(`${endpoint}?date=${encodeURIComponent(dateValue)}`, {
+            const response = await fetch(url, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -554,44 +697,71 @@ $chartDateDefault = date('Y-m-d');
             }
 
             const payload = await response.json();
-            if (!payload?.success || typeof payload.data !== 'object' || payload.data === null) {
-                throw new Error('Invalid usage chart response.');
+            if (payload?.status !== 'success' || typeof payload.data !== 'object' || payload.data === null) {
+                throw new Error('Invalid router analytics response');
             }
 
-            const weeklySeries = Array.isArray(payload.data.weekly) ? payload.data.weekly : [];
-            const fiveHourSeries = Array.isArray(payload.data.five_hour) ? payload.data.five_hour : [];
+            const data = payload.data;
+            const dailyRows = Array.isArray(data.daily_tokens) ? data.daily_tokens : [];
+            const hourlyRows = Array.isArray(data.activity_by_hour) ? data.activity_by_hour : [];
+            const accountRows = Array.isArray(data.usage_by_account) ? data.usage_by_account : [];
+            const modelRows = Array.isArray(data.usage_by_model) ? data.usage_by_model : [];
+            const avgCacheRatio = averageSeriesValue(dailyRows, 'cache_ratio_percent');
+            const avgLatency = averageSeriesValue(dailyRows, 'avg_latency_ms', true);
+            const cacheTone = cacheVisual(avgCacheRatio);
+            const latencyTone = latencyVisual(avgLatency);
+            const cacheBadgeState = cacheVisualTone(avgCacheRatio);
 
-            renderTimeSeriesChart(weeklyRoot, weeklySeries, 'Belum ada data weekly pada tanggal ini.');
-            renderTimeSeriesChart(fiveHourRoot, fiveHourSeries, 'Belum ada data usage 5h (akun workspace) pada tanggal ini.');
-            applyCaption(payload.date || dateValue, weeklySeries.length, fiveHourSeries.length);
+            renderSimpleLineChart(dailyRoot, dailyRows, 'day', 'total_tokens', 'Belum ada data token harian pada rentang ini.', '#2f6db5');
+            renderSimpleLineChart(hourlyRoot, hourlyRows, 'label', 'total_requests', 'Belum ada data aktivitas request pada rentang ini.', '#1f8a65');
+            renderSimpleLineChart(cacheRoot, dailyRows, 'day', 'cache_ratio_percent', 'Belum ada data cache ratio harian pada rentang ini.', cacheTone.color, (value) => formatDecimal(value, 2), '%', `Threshold: >=80 healthy · 50-79 moderate · <50 low | avg ${formatDecimal(avgCacheRatio, 2)}%`);
+            renderSimpleLineChart(latencyRoot, dailyRows, 'day', 'avg_latency_ms', 'Belum ada data latency harian pada rentang ini.', latencyTone.color, (value) => formatDecimal(value, 0), 'ms', `Threshold: <=8000 fast · 8001-15000 moderate · >15000 slow | avg ${formatDecimal(avgLatency, 0)}ms`);
+
+            renderBarList(
+                accountRoot,
+                accountRows,
+                'total_tokens',
+                'display',
+                'Belum ada data usage per akun pada rentang ini.',
+                (row) => `req=${formatNumber(row?.total_requests)} · cache=${row?.cache_ratio_percent ?? 0}% · latency=${formatNumber(row?.avg_latency_ms)}ms`
+            );
+
+            renderBarList(
+                modelRoot,
+                modelRows,
+                'total_tokens',
+                'model',
+                'Belum ada data usage per model pada rentang ini.',
+                (row) => `req=${formatNumber(row?.total_requests)} · reasoning=${formatNumber(row?.reasoning_tokens)} · cache=${row?.cache_ratio_percent ?? 0}%`
+            );
+
+            updateCaption(data.filters ?? {}, dailyRows);
+            if (caption) {
+                caption.textContent = `${caption.textContent} · cache ${cacheTone.note} · latency ${latencyTone.note}`;
+            }
+            setBadge(cacheBadge, `${cacheBadgeState.label} ${formatDecimal(avgCacheRatio, 1)}%`, cacheBadgeState.tone);
+            setBadge(latencyBadge, `${latencyTone.label ?? 'No Data'} ${formatLatencyCompact(avgLatency)}`, latencyTone.tone ?? 'neutral');
         } catch (error) {
-            weeklyRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data weekly pada tanggal tersebut.</p>';
-            fiveHourRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data 5h pada tanggal tersebut.</p>';
-            applyCaption(dateValue, 0, 0);
+            const message = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data observability 9router.</p>';
+            dailyRoot.innerHTML = message;
+            hourlyRoot.innerHTML = message;
+            cacheRoot.innerHTML = message;
+            latencyRoot.innerHTML = message;
+            accountRoot.innerHTML = message;
+            modelRoot.innerHTML = message;
+            setBadge(cacheBadge, 'No Data', 'neutral');
+            setBadge(latencyBadge, 'No Data', 'neutral');
+            if (caption) {
+                caption.textContent = 'Gagal memuat data observability 9router.';
+            }
         } finally {
-            setChartLoading(false);
+            setLoading(false);
         }
     };
 
-    const initialDate = dateInput?.value || weeklyRoot.getAttribute('data-initial-date') || '';
-    if (dateInput && initialDate !== '') {
-        dateInput.value = initialDate;
-    }
-
-    if (endpoint && initialDate !== '') {
-        loadChartByDate(initialDate);
-    } else {
-        renderTimeSeriesChart(weeklyRoot, [], 'Belum ada data weekly pada tanggal ini.');
-        renderTimeSeriesChart(fiveHourRoot, [], 'Belum ada data usage 5h (akun workspace) pada tanggal ini.');
-        applyCaption(initialDate !== '' ? initialDate : '-', 0, 0);
-    }
-
-    dateInput?.addEventListener('change', () => {
-        const selectedDate = dateInput.value;
-        if (selectedDate !== '') {
-            loadChartByDate(selectedDate);
-        }
-    });
+    providerInput.addEventListener('change', loadRouterCharts);
+    daysInput.addEventListener('change', loadRouterCharts);
+    loadRouterCharts();
 })();
 </script>
 <?= $this->endSection() ?>

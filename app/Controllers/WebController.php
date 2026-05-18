@@ -16,20 +16,6 @@ use CodeIgniter\HTTP\RedirectResponse;
 class WebController extends BaseController
 {
     private const HISTORY_PER_PAGE = 5;
-    private const USAGE_CHART_PALETTE = [
-        '#1f8a65',
-        '#cf2d56',
-        '#2f6db5',
-        '#9d6bcf',
-        '#c08532',
-        '#2f7b7b',
-        '#bf4e30',
-        '#6b6fda',
-        '#7f9152',
-        '#5f4a83',
-        '#b35f8a',
-        '#4d8f76',
-    ];
 
     private AccountModel $accounts;
     private SubscriptionModel $subscriptions;
@@ -57,6 +43,7 @@ class WebController extends BaseController
         foreach ($accounts as $account) {
             $accountMap[$account['id']] = $account;
         }
+        $routerUsageByEmail = $this->routerUsageByEmails(array_column($accounts, 'email'));
 
         $subscriptions = $this->enrichedSubscriptions(
             $this->subscriptions->whereIn('account_type', ['pro', 'plus'])->orderBy('expired_at', 'ASC')->findAll()
@@ -84,6 +71,7 @@ class WebController extends BaseController
             'subscriptions'     => $subscriptions,
             'freeSubscriptions' => $freeSubscriptions,
             'accountMap'        => $accountMap,
+            'routerUsageByEmail'=> $routerUsageByEmail,
             'pageTitle'         => 'Dashboard',
         ]);
     }
@@ -169,18 +157,14 @@ class WebController extends BaseController
             $this->normalizePage($this->request->getGet('renewal_page')),
             self::HISTORY_PER_PAGE
         );
-        $usageHistoryPage = $this->usageHistoryPage(
-            $id,
-            $this->normalizePage($this->request->getGet('usage_page')),
-            self::HISTORY_PER_PAGE
-        );
+        $routerUsage = $this->routerUsageForEmail((string) ($account['email'] ?? ''));
 
         return view('accounts/detail', [
             'account'              => $account,
             'subscriptions'        => $subscriptions,
             'workspaceHistoryPage' => $workspaceHistoryPage,
             'renewalHistoryPage'   => $renewalHistoryPage,
-            'usageHistoryPage'     => $usageHistoryPage,
+            'routerUsage'          => $routerUsage,
             'pageTitle'            => 'Account Detail',
         ]);
     }
@@ -219,11 +203,6 @@ class WebController extends BaseController
             $view = 'accounts/partials/history_renewal';
             $viewData = ['renewalHistory' => $pageData['rows'], 'pagination' => $pageData['pagination']];
             $pagination = $pageData['pagination'];
-        } elseif ($section === 'usage') {
-            $pageData = $this->usageHistoryPage($id, $page, self::HISTORY_PER_PAGE);
-            $view = 'accounts/partials/history_usage';
-            $viewData = ['history' => $pageData['rows'], 'pagination' => $pageData['pagination']];
-            $pagination = $pageData['pagination'];
         } else {
             return $this->response->setStatusCode(422)->setJSON([
                 'success' => false,
@@ -236,36 +215,6 @@ class WebController extends BaseController
             'section' => $section,
             'pagination' => $pagination,
             'html' => view($view, $viewData),
-        ]);
-    }
-
-    public function dashboardUsageChart()
-    {
-        $date = $this->normalizeChartDate($this->request->getGet('date'));
-
-        return $this->response->setJSON([
-            'success' => true,
-            'date' => $date,
-            'data' => $this->buildDashboardUsageChartDataByDate($date),
-        ]);
-    }
-
-    public function accountUsageChart(int $id)
-    {
-        $account = $this->accounts->find($id);
-        if (! $account) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'success' => false,
-                'message' => 'Account tidak ditemukan.',
-            ]);
-        }
-
-        $date = $this->normalizeChartDate($this->request->getGet('date'));
-
-        return $this->response->setJSON([
-            'success' => true,
-            'date' => $date,
-            'data' => $this->buildAccountUsageChartDataByDate($id, $date),
         ]);
     }
 
@@ -742,54 +691,6 @@ class WebController extends BaseController
         return redirect()->to('/accounts/' . $id)->with('success', $successMessage);
     }
 
-    public function updateUsage(int $id): RedirectResponse
-    {
-        $usage = $this->usages->find($id);
-        if (! $usage) {
-            return redirect()->back()->with('error', 'Usage tidak ditemukan.');
-        }
-
-        $data = $this->request->getPost();
-
-        $rules = [
-            'remaining_percent' => 'required|integer|greater_than_equal_to[0]|less_than_equal_to[100]',
-            'reset_at'          => 'permit_empty|valid_date[Y-m-d\\TH:i]',
-        ];
-
-        if (! $this->validateData($data, $rules)) {
-            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
-        }
-
-        $newPercent = (int) $data['remaining_percent'];
-        $resetAt = null;
-        $rawResetAt = trim((string) ($data['reset_at'] ?? ''));
-
-        if ($newPercent < 100) {
-            if ($rawResetAt === '') {
-                return redirect()->back()->withInput()->with('error', 'Waktu reset wajib diisi jika usage di bawah 100%.');
-            }
-
-            $resetAt = date('Y-m-d H:i:s', strtotime($rawResetAt));
-            if ($this->isPastDate($resetAt)) {
-                return redirect()->back()->withInput()->with('error', 'Waktu reset tidak boleh lebih tua dari tanggal hari ini.');
-            }
-        }
-
-        $this->histories->insert([
-            'account_usage_id' => $usage['id'],
-            'old_percent'      => (int) $usage['remaining_percent'],
-            'new_percent'      => $newPercent,
-            'created_at'       => date('Y-m-d H:i:s'),
-        ]);
-
-        $this->usages->update($id, [
-            'remaining_percent' => $newPercent,
-            'reset_at'          => $resetAt,
-        ]);
-
-        return redirect()->back()->with('success', 'Usage berhasil diupdate.');
-    }
-
     public function telegramSettings(): string
     {
         $userId = $this->currentUserId();
@@ -803,9 +704,14 @@ class WebController extends BaseController
             ];
         }
 
+        $hardResetSeed = $this->routerHardResetSeed();
+        $envEditor = $this->envEditorState();
+
         return view('telegram/settings', [
-            'settings'  => $settings,
-            'pageTitle' => 'Telegram Settings',
+            'settings'      => $settings,
+            'hardResetSeed' => $hardResetSeed,
+            'envEditor'     => $envEditor,
+            'pageTitle'     => 'Settings',
         ]);
     }
 
@@ -844,13 +750,217 @@ class WebController extends BaseController
     {
         $userId = $this->currentUserId();
         $telegram = new TelegramService();
-        $result = $telegram->sendMessage('Test notification dari halaman Telegram Settings', $userId);
+        $result = $telegram->sendMessage('Test notification dari halaman Settings', $userId);
 
         if (! $result['success']) {
             return redirect()->back()->with('error', $result['message']);
         }
 
         return redirect()->back()->with('success', 'Test message terkirim.');
+    }
+
+    public function saveDotEnvFromSettings(): RedirectResponse
+    {
+        $content = (string) ($this->request->getPost('env_content') ?? '');
+        $normalizedContent = str_replace(["\r\n", "\r"], "\n", $content);
+
+        if (str_contains($normalizedContent, "\0")) {
+            return redirect()->back()->withInput()->with('error', '.env mengandung karakter null byte yang tidak valid.');
+        }
+
+        $maxBytes = 300000;
+        if (strlen($normalizedContent) > $maxBytes) {
+            return redirect()->back()->withInput()->with('error', '.env terlalu besar. Batas maksimum 300KB.');
+        }
+
+        $lineError = $this->firstInvalidEnvLine($normalizedContent);
+        if ($lineError !== null) {
+            return redirect()->back()->withInput()->with('error', sprintf('Format .env tidak valid di baris %d.', $lineError));
+        }
+
+        $path = $this->envFilePath();
+        if (! is_file($path)) {
+            return redirect()->back()->with('error', 'File .env tidak ditemukan di root project.');
+        }
+
+        if (! is_writable($path)) {
+            return redirect()->back()->with('error', 'File .env tidak writable oleh web server.');
+        }
+
+        $backupPath = $path . '.bak.' . date('Ymd_His');
+        if (@copy($path, $backupPath) === false) {
+            return redirect()->back()->with('error', 'Gagal membuat backup .env sebelum menyimpan.');
+        }
+
+        $bytes = @file_put_contents($path, $normalizedContent, LOCK_EX);
+        if ($bytes === false) {
+            return redirect()->back()->with('error', 'Gagal menyimpan file .env. Backup tersimpan di: ' . basename($backupPath));
+        }
+
+        return redirect()->to('/settings')->with('success', '.env berhasil disimpan. Backup: ' . basename($backupPath));
+    }
+
+    public function restoreLatestDotEnvBackup(): RedirectResponse
+    {
+        $path = $this->envFilePath();
+        if (! is_file($path)) {
+            return redirect()->back()->with('error', 'File .env tidak ditemukan di root project.');
+        }
+
+        if (! is_writable($path)) {
+            return redirect()->back()->with('error', 'File .env tidak writable oleh web server.');
+        }
+
+        $latestBackup = $this->latestEnvBackupPath();
+        if ($latestBackup === null) {
+            return redirect()->back()->with('error', 'Backup .env tidak ditemukan.');
+        }
+
+        if (! is_readable($latestBackup)) {
+            return redirect()->back()->with('error', 'Backup .env terbaru tidak dapat dibaca.');
+        }
+
+        $beforeRestoreBackup = $path . '.bak.' . date('Ymd_His');
+        if (@copy($path, $beforeRestoreBackup) === false) {
+            return redirect()->back()->with('error', 'Gagal membuat backup .env saat ini sebelum restore.');
+        }
+
+        if (@copy($latestBackup, $path) === false) {
+            return redirect()->back()->with(
+                'error',
+                'Restore gagal. Backup current state ada di: ' . basename($beforeRestoreBackup)
+            );
+        }
+
+        return redirect()->to('/settings')->with(
+            'success',
+            sprintf('Restore .env berhasil dari %s. Backup state sebelumnya: %s', basename($latestBackup), basename($beforeRestoreBackup))
+        );
+    }
+
+    public function hardResetLocalAccountsFromRouter(): RedirectResponse
+    {
+        $acknowledged = (string) ($this->request->getPost('ack_irreversible') ?? '');
+        if ($acknowledged !== '1') {
+            return redirect()->back()->with('error', 'Centang konfirmasi bahwa hard reset bersifat irreversibel.');
+        }
+
+        $confirmation = strtoupper(trim((string) $this->request->getPost('confirm_phrase')));
+        if ($confirmation !== 'HARD RESET') {
+            return redirect()->back()->with('error', 'Konfirmasi tidak valid. Ketik tepat: HARD RESET');
+        }
+
+        $seed = $this->routerHardResetSeed();
+        $emails = $seed['emails'] ?? [];
+        if (! is_array($emails) || $emails === []) {
+            return redirect()->back()->with('error', 'Tidak ada email valid dari data 9router. Hard reset dibatalkan.');
+        }
+
+        $routerAccountIdsByEmail = is_array($seed['router_account_ids_by_email'] ?? null)
+            ? $seed['router_account_ids_by_email']
+            : [];
+        $userId = $this->currentUserId();
+        $db = db_connect();
+
+        $db->transBegin();
+        try {
+            // Domain lokal yang di-reset (akun/subscription dan tabel turunannya).
+            $tablesToClear = [
+                'account_usage_histories',
+                'account_usages',
+                'subscription_renewal_histories',
+                'reminder_logs',
+                'subscriptions',
+                'accounts',
+            ];
+            foreach ($tablesToClear as $tableName) {
+                if (! $db->tableExists($tableName)) {
+                    continue;
+                }
+
+                $db->table($tableName)->where('id >', 0)->delete();
+            }
+
+            // Reset relasi ai_router_accounts sebelum remap.
+            if ($db->tableExists('ai_router_accounts')) {
+                $db->table('ai_router_accounts')
+                    ->set([
+                        'user_id' => null,
+                        'account_id' => null,
+                        'subscription_id' => null,
+                        'mapping_status' => 'unmapped',
+                    ])
+                    ->update();
+            }
+
+            $importedAccounts = 0;
+            foreach ($emails as $email) {
+                $accountId = (int) $this->accounts->insert([
+                    'account_name' => $this->defaultAccountNameFromEmail($email),
+                    'email' => $email,
+                    'password_hint' => null,
+                    'notes' => null,
+                ], true);
+
+                if ($accountId <= 0) {
+                    throw new \RuntimeException('Gagal membuat akun untuk email: ' . $email);
+                }
+
+                $subscriptionId = (int) $this->subscriptions->insert([
+                    'account_id' => $accountId,
+                    'account_type' => 'free',
+                    'pro_account_type' => null,
+                    'workspace_name' => null,
+                    'personal_workspace_name' => $this->defaultWorkspaceNameFromEmail($email),
+                    'is_workspace_deactivated' => 0,
+                    'store_source' => '9router_import',
+                    'subscription_type' => 'Free (9router)',
+                    'subscribed_at' => null,
+                    'is_one_month_duration' => 0,
+                    'expired_at' => null,
+                    'status' => 'active',
+                ], true);
+
+                if ($subscriptionId <= 0) {
+                    throw new \RuntimeException('Gagal membuat subscription untuk email: ' . $email);
+                }
+
+                // Tetap sinkronkan tabel usage lama agar UI/fitur legacy tetap konsisten.
+                $this->syncUsagesForSubscription($subscriptionId, 'free', null, date('Y-m-d H:i:s'));
+
+                $routerIds = $routerAccountIdsByEmail[$email] ?? [];
+                if (is_array($routerIds) && $routerIds !== [] && $db->tableExists('ai_router_accounts')) {
+                    $db->table('ai_router_accounts')
+                        ->whereIn('id', array_values(array_unique(array_map('intval', $routerIds))))
+                        ->set([
+                            'user_id' => $userId,
+                            'account_id' => $accountId,
+                            'subscription_id' => $subscriptionId,
+                            'mapping_status' => 'mapped',
+                        ])
+                        ->update();
+                }
+
+                $importedAccounts++;
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Hard reset local accounts failed: {message}', ['message' => $e->getMessage()]);
+
+            return redirect()->back()->with('error', 'Hard reset gagal: ' . $e->getMessage());
+        }
+
+        if (! $db->transStatus()) {
+            $db->transRollback();
+            return redirect()->back()->with('error', 'Hard reset gagal karena transaksi database tidak valid.');
+        }
+
+        $db->transCommit();
+
+        return redirect()->to('/settings')->with(
+            'success',
+            sprintf('Hard reset berhasil. %d akun lokal dibuat ulang dari data 9router.', $importedAccounts)
+        );
     }
 
     public function profile(): RedirectResponse|string
@@ -1043,6 +1153,364 @@ class WebController extends BaseController
     }
 
     /**
+     * @param array<int, string|null> $emails
+     *
+     * @return array<string, array{
+     *   requests_24h:int,
+     *   tokens_24h:int,
+     *   requests_7d:int,
+     *   tokens_7d:int,
+     *   cache_ratio_7d:float,
+     *   avg_latency_ms_7d:int,
+     *   last_event_at:string
+     * }>
+     */
+    private function routerUsageByEmails(array $emails): array
+    {
+        $normalizedEmails = [];
+        foreach ($emails as $email) {
+            $value = strtolower(trim((string) $email));
+            if ($value !== '') {
+                $normalizedEmails[] = $value;
+            }
+        }
+
+        $normalizedEmails = array_values(array_unique($normalizedEmails));
+        if ($normalizedEmails === []) {
+            return [];
+        }
+
+        $rows = db_connect()
+            ->table('ai_router_usage_events e')
+            ->select("
+                LOWER(a.email) AS email,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) AS requests_24h,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) THEN (e.input_tokens + e.output_tokens) ELSE 0 END) AS tokens_24h,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS requests_7d,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY) THEN (e.input_tokens + e.output_tokens) ELSE 0 END) AS tokens_7d,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY) THEN e.input_tokens ELSE 0 END) AS input_tokens_7d,
+                SUM(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY) THEN e.cache_read_tokens ELSE 0 END) AS cache_read_tokens_7d,
+                AVG(CASE WHEN e.event_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY) THEN NULLIF(e.duration_ms, 0) END) AS avg_latency_ms_7d,
+                MAX(e.event_at) AS last_event_at
+            ", false)
+            ->join('ai_router_accounts a', 'a.provider = e.provider AND a.router_account_ref = e.router_account_ref', 'inner')
+            ->whereIn('LOWER(a.email)', $normalizedEmails)
+            ->groupBy('LOWER(a.email)')
+            ->get()
+            ->getResultArray();
+
+        $usageMap = [];
+        foreach ($rows as $row) {
+            $email = strtolower(trim((string) ($row['email'] ?? '')));
+            if ($email === '') {
+                continue;
+            }
+
+            $usageMap[$email] = $this->normalizeRouterUsageRow($row);
+        }
+
+        return $usageMap;
+    }
+
+    /**
+     * @return array{
+     *   requests_24h:int,
+     *   tokens_24h:int,
+     *   requests_7d:int,
+     *   tokens_7d:int,
+     *   cache_ratio_7d:float,
+     *   avg_latency_ms_7d:int,
+     *   last_event_at:string
+     * }
+     */
+    private function routerUsageForEmail(string $email): array
+    {
+        $key = strtolower(trim($email));
+        if ($key === '') {
+            return $this->emptyRouterUsageRow();
+        }
+
+        $map = $this->routerUsageByEmails([$key]);
+
+        return $map[$key] ?? $this->emptyRouterUsageRow();
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array{
+     *   requests_24h:int,
+     *   tokens_24h:int,
+     *   requests_7d:int,
+     *   tokens_7d:int,
+     *   cache_ratio_7d:float,
+     *   avg_latency_ms_7d:int,
+     *   last_event_at:string
+     * }
+     */
+    private function normalizeRouterUsageRow(array $row): array
+    {
+        $inputTokens7d = (int) ($row['input_tokens_7d'] ?? 0);
+        $cacheRead7d = (int) ($row['cache_read_tokens_7d'] ?? 0);
+
+        return [
+            'requests_24h' => (int) ($row['requests_24h'] ?? 0),
+            'tokens_24h' => (int) ($row['tokens_24h'] ?? 0),
+            'requests_7d' => (int) ($row['requests_7d'] ?? 0),
+            'tokens_7d' => (int) ($row['tokens_7d'] ?? 0),
+            'cache_ratio_7d' => $inputTokens7d > 0 ? round(($cacheRead7d / $inputTokens7d) * 100, 2) : 0.0,
+            'avg_latency_ms_7d' => (int) round((float) ($row['avg_latency_ms_7d'] ?? 0)),
+            'last_event_at' => (string) ($row['last_event_at'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array{
+     *   requests_24h:int,
+     *   tokens_24h:int,
+     *   requests_7d:int,
+     *   tokens_7d:int,
+     *   cache_ratio_7d:float,
+     *   avg_latency_ms_7d:int,
+     *   last_event_at:string
+     * }
+     */
+    private function emptyRouterUsageRow(): array
+    {
+        return [
+            'requests_24h' => 0,
+            'tokens_24h' => 0,
+            'requests_7d' => 0,
+            'tokens_7d' => 0,
+            'cache_ratio_7d' => 0.0,
+            'avg_latency_ms_7d' => 0,
+            'last_event_at' => '',
+        ];
+    }
+
+    /**
+     * @return array{
+     *   emails: array<int, string>,
+     *   total_emails: int,
+     *   total_router_accounts_with_email: int,
+     *   total_router_sessions_with_email: int,
+     *   router_account_ids_by_email: array<string, array<int, int>>
+     * }
+     */
+    private function routerHardResetSeed(): array
+    {
+        $db = db_connect();
+        $emails = [];
+        $routerAccountIdsByEmail = [];
+        $routerAccountRowsWithEmail = 0;
+        $sessionRowsWithEmail = 0;
+
+        if ($db->tableExists('ai_router_accounts')) {
+            $accountRows = $db->table('ai_router_accounts')
+                ->select('id, email')
+                ->where('email IS NOT NULL', null, false)
+                ->where('email !=', '')
+                ->get()
+                ->getResultArray();
+
+            foreach ($accountRows as $row) {
+                $email = $this->normalizeImportEmail((string) ($row['email'] ?? ''));
+                if ($email === null) {
+                    continue;
+                }
+
+                $routerAccountRowsWithEmail++;
+                $emails[$email] = true;
+                $routerId = (int) ($row['id'] ?? 0);
+                if ($routerId > 0) {
+                    $routerAccountIdsByEmail[$email][] = $routerId;
+                }
+            }
+        }
+
+        if ($db->tableExists('ai_router_account_sessions')) {
+            $sessionRows = $db->table('ai_router_account_sessions')
+                ->select('email')
+                ->where('email IS NOT NULL', null, false)
+                ->where('email !=', '')
+                ->get()
+                ->getResultArray();
+
+            foreach ($sessionRows as $row) {
+                $email = $this->normalizeImportEmail((string) ($row['email'] ?? ''));
+                if ($email === null) {
+                    continue;
+                }
+
+                $sessionRowsWithEmail++;
+                $emails[$email] = true;
+            }
+        }
+
+        $uniqueEmails = array_keys($emails);
+        sort($uniqueEmails, SORT_NATURAL);
+
+        foreach ($routerAccountIdsByEmail as $email => $ids) {
+            $routerAccountIdsByEmail[$email] = array_values(array_unique(array_map('intval', $ids)));
+        }
+
+        return [
+            'emails' => $uniqueEmails,
+            'total_emails' => count($uniqueEmails),
+            'total_router_accounts_with_email' => $routerAccountRowsWithEmail,
+            'total_router_sessions_with_email' => $sessionRowsWithEmail,
+            'router_account_ids_by_email' => $routerAccountIdsByEmail,
+        ];
+    }
+
+    private function normalizeImportEmail(string $email): ?string
+    {
+        $normalized = strtolower(trim($email));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return filter_var($normalized, FILTER_VALIDATE_EMAIL) ? $normalized : null;
+    }
+
+    private function defaultAccountNameFromEmail(string $email): string
+    {
+        $localPart = explode('@', $email, 2)[0] ?? '';
+        $clean = (string) preg_replace('/[^a-z0-9]+/i', ' ', $localPart);
+        $clean = trim((string) preg_replace('/\s+/', ' ', $clean));
+        if ($clean === '') {
+            $clean = $email;
+        }
+
+        $name = ucwords(substr($clean, 0, 90));
+
+        return $name !== '' ? $name : 'Imported Account';
+    }
+
+    private function defaultWorkspaceNameFromEmail(string $email): string
+    {
+        return substr($this->defaultAccountNameFromEmail($email) . ' Workspace', 0, 120);
+    }
+
+    /**
+     * @return array{
+     *   path:string,
+     *   exists:bool,
+     *   writable:bool,
+     *   size_bytes:int,
+     *   content:string,
+     *   latest_backup_name:string,
+     *   latest_backup_mtime:string,
+     *   latest_backup_size_bytes:int
+     * }
+     */
+    private function envEditorState(): array
+    {
+        $path = $this->envFilePath();
+        $exists = is_file($path);
+        $writable = $exists && is_writable($path);
+        $content = '';
+        $sizeBytes = 0;
+
+        if ($exists) {
+            $raw = @file_get_contents($path);
+            if ($raw !== false) {
+                $content = str_replace(["\r\n", "\r"], "\n", $raw);
+                $sizeBytes = strlen($content);
+            }
+        }
+
+        $oldInput = session()->getFlashdata('_ci_old_input');
+        $oldContent = is_array($oldInput) ? ($oldInput['env_content'] ?? null) : null;
+        if (is_string($oldContent)) {
+            $content = str_replace(["\r\n", "\r"], "\n", $oldContent);
+            $sizeBytes = strlen($content);
+        }
+
+        $latestBackupPath = $this->latestEnvBackupPath();
+        $latestBackupName = '';
+        $latestBackupMtime = '';
+        $latestBackupSize = 0;
+        if ($latestBackupPath !== null) {
+            $latestBackupName = basename($latestBackupPath);
+            $mtime = @filemtime($latestBackupPath);
+            $latestBackupMtime = $mtime !== false ? date('Y-m-d H:i:s', $mtime) : '';
+            $latestBackupSize = (int) (@filesize($latestBackupPath) ?: 0);
+        }
+
+        return [
+            'path' => $path,
+            'exists' => $exists,
+            'writable' => $writable,
+            'size_bytes' => $sizeBytes,
+            'content' => $content,
+            'latest_backup_name' => $latestBackupName,
+            'latest_backup_mtime' => $latestBackupMtime,
+            'latest_backup_size_bytes' => $latestBackupSize,
+        ];
+    }
+
+    private function envFilePath(): string
+    {
+        return rtrim(ROOTPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '.env';
+    }
+
+    private function latestEnvBackupPath(): ?string
+    {
+        $path = $this->envFilePath();
+        $pattern = $path . '.bak.*';
+        $matches = glob($pattern);
+        if (! is_array($matches) || $matches === []) {
+            return null;
+        }
+
+        $candidates = array_values(array_filter($matches, static function ($file): bool {
+            return is_string($file) && is_file($file);
+        }));
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        usort($candidates, static function (string $a, string $b): int {
+            $timeA = (int) (@filemtime($a) ?: 0);
+            $timeB = (int) (@filemtime($b) ?: 0);
+            if ($timeA === $timeB) {
+                return strcmp($b, $a);
+            }
+
+            return $timeB <=> $timeA;
+        });
+
+        return $candidates[0] ?? null;
+    }
+
+    private function firstInvalidEnvLine(string $content): ?int
+    {
+        if (trim($content) === '') {
+            return null;
+        }
+
+        $lines = explode("\n", $content);
+        foreach ($lines as $index => $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if (str_starts_with($trimmed, 'export ')) {
+                $trimmed = trim(substr($trimmed, 7));
+            }
+
+            if (! str_contains($trimmed, '=')) {
+                return $index + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array{
@@ -1230,11 +1698,6 @@ class WebController extends BaseController
         }
     }
 
-    private function isPastDate(string $dateTime): bool
-    {
-        return date('Y-m-d', strtotime($dateTime)) < date('Y-m-d');
-    }
-
     /**
      * @param array<string, mixed> $usage
      *
@@ -1352,37 +1815,6 @@ class WebController extends BaseController
 
     /**
      * @return array{
-     *     rows: array<int, array<string, mixed>>,
-     *     pagination: array<string, int|bool>
-     * }
-     */
-    private function usageHistoryPage(int $accountId, int $page, int $perPage): array
-    {
-        $builder = db_connect()
-            ->table('account_usage_histories')
-            ->select('account_usage_histories.*, account_usages.usage_type, account_usages.subscription_id')
-            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
-            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
-            ->where('subscriptions.account_id', $accountId);
-
-        $totalItems = (int) (clone $builder)->countAllResults();
-        $pagination = $this->buildPaginationMeta($totalItems, $page, $perPage);
-
-        $rows = $builder
-            ->orderBy('account_usage_histories.created_at', 'DESC')
-            ->limit($perPage, $pagination['offset'])
-            ->get()
-            ->getResultArray();
-        unset($pagination['offset']);
-
-        return [
-            'rows' => $rows,
-            'pagination' => $pagination,
-        ];
-    }
-
-    /**
-     * @return array{
      *     current_page: int,
      *     per_page: int,
      *     total_items: int,
@@ -1413,282 +1845,6 @@ class WebController extends BaseController
         $page = (int) $value;
 
         return $page > 0 ? $page : 1;
-    }
-
-    private function normalizeChartDate(mixed $value): string
-    {
-        $raw = trim((string) $value);
-        if ($raw === '') {
-            return date('Y-m-d');
-        }
-
-        $date = \DateTime::createFromFormat('Y-m-d', $raw);
-        if (! $date instanceof \DateTime || $date->format('Y-m-d') !== $raw) {
-            return date('Y-m-d');
-        }
-
-        return $raw;
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function chartDateRange(string $date): array
-    {
-        return [$date . ' 00:00:00', $date . ' 23:59:59'];
-    }
-
-    private function normalizeUsageTypeForChart(mixed $value): ?string
-    {
-        $usageType = strtolower(trim((string) $value));
-
-        return in_array($usageType, ['5h', 'weekly'], true) ? $usageType : null;
-    }
-
-    /**
-     * @return array{
-     *     weekly: array<int, array{
-     *         label: string,
-     *         accountType: string,
-     *         color: string,
-     *         points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     *     }>,
-     *     five_hour: array<int, array{
-     *         label: string,
-     *         accountType: string,
-     *         color: string,
-     *         points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     *     }>
-     * }
-     */
-    private function buildDashboardUsageChartDataByDate(string $date): array
-    {
-        [$start, $end] = $this->chartDateRange($date);
-
-        $rows = db_connect()
-            ->table('account_usage_histories')
-            ->select('account_usage_histories.new_percent, account_usage_histories.created_at, account_usages.usage_type, subscriptions.account_id, subscriptions.account_type, accounts.account_name')
-            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
-            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
-            ->join('accounts', 'accounts.id = subscriptions.account_id')
-            ->where('account_usage_histories.created_at >=', $start)
-            ->where('account_usage_histories.created_at <=', $end)
-            ->orderBy('account_usage_histories.created_at', 'ASC')
-            ->get()
-            ->getResultArray();
-
-        $weeklySeries = [];
-        $fiveHourSeries = [];
-
-        foreach ($rows as $row) {
-            $usageType = $this->normalizeUsageTypeForChart($row['usage_type'] ?? null);
-            if ($usageType === null) {
-                continue;
-            }
-
-            $accountId = (int) ($row['account_id'] ?? 0);
-            if ($accountId <= 0) {
-                continue;
-            }
-
-            $accountType = SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free'));
-            $accountName = trim((string) ($row['account_name'] ?? ''));
-            $label = $accountName !== '' ? $accountName : ('Akun #' . $accountId);
-            $createdAt = (string) ($row['created_at'] ?? '');
-            $minute = $this->minuteOfDay($createdAt);
-            $point = [
-                'time' => $this->timeLabel($createdAt),
-                'minute' => $minute,
-                'percent' => (int) ($row['new_percent'] ?? 0),
-                'at' => $createdAt,
-            ];
-
-            if ($usageType === 'weekly') {
-                if (! isset($weeklySeries[$accountId])) {
-                    $weeklySeries[$accountId] = [
-                        'label' => $label,
-                        'accountType' => $accountType,
-                        'points' => [],
-                    ];
-                }
-
-                $weeklySeries[$accountId]['points'][] = $point;
-                continue;
-            }
-
-            if ($usageType === '5h' && SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
-                if (! isset($fiveHourSeries[$accountId])) {
-                    $fiveHourSeries[$accountId] = [
-                        'label' => $label,
-                        'accountType' => $accountType,
-                        'points' => [],
-                    ];
-                }
-
-                $fiveHourSeries[$accountId]['points'][] = $point;
-            }
-        }
-
-        return [
-            'weekly' => $this->finalizeTimeSeries(array_values($weeklySeries)),
-            'five_hour' => $this->finalizeTimeSeries(array_values($fiveHourSeries)),
-        ];
-    }
-
-    /**
-     * @return array{
-     *     weekly: array<int, array{
-     *         label: string,
-     *         accountType: string,
-     *         color: string,
-     *         points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     *     }>,
-     *     five_hour: array<int, array{
-     *         label: string,
-     *         accountType: string,
-     *         color: string,
-     *         points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     *     }>
-     * }
-     */
-    private function buildAccountUsageChartDataByDate(int $accountId, string $date): array
-    {
-        [$start, $end] = $this->chartDateRange($date);
-
-        $rows = db_connect()
-            ->table('account_usage_histories')
-            ->select('account_usage_histories.new_percent, account_usage_histories.created_at, account_usages.usage_type, subscriptions.id AS subscription_id, subscriptions.account_type, subscriptions.workspace_name, subscriptions.subscription_type')
-            ->join('account_usages', 'account_usages.id = account_usage_histories.account_usage_id')
-            ->join('subscriptions', 'subscriptions.id = account_usages.subscription_id')
-            ->where('subscriptions.account_id', $accountId)
-            ->where('account_usage_histories.created_at >=', $start)
-            ->where('account_usage_histories.created_at <=', $end)
-            ->orderBy('account_usage_histories.created_at', 'ASC')
-            ->get()
-            ->getResultArray();
-
-        $weeklySeries = [];
-        $fiveHourSeries = [];
-
-        foreach ($rows as $row) {
-            $usageType = $this->normalizeUsageTypeForChart($row['usage_type'] ?? null);
-            if ($usageType === null) {
-                continue;
-            }
-
-            $subscriptionId = (int) ($row['subscription_id'] ?? 0);
-            if ($subscriptionId <= 0) {
-                continue;
-            }
-
-            $accountType = SubscriptionStatusService::normalizeAccountType((string) ($row['account_type'] ?? 'free'));
-            $workspaceName = trim((string) ($row['workspace_name'] ?? ''));
-            $subscriptionType = trim((string) ($row['subscription_type'] ?? 'Subscription'));
-            $label = $workspaceName !== '' ? ($subscriptionType . ' · ' . $workspaceName) : $subscriptionType;
-            if (! SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
-                $label .= ' · Free';
-            }
-
-            $createdAt = (string) ($row['created_at'] ?? '');
-            $point = [
-                'time' => $this->timeLabel($createdAt),
-                'minute' => $this->minuteOfDay($createdAt),
-                'percent' => (int) ($row['new_percent'] ?? 0),
-                'at' => $createdAt,
-            ];
-
-            if ($usageType === 'weekly') {
-                if (! isset($weeklySeries[$subscriptionId])) {
-                    $weeklySeries[$subscriptionId] = [
-                        'label' => $label,
-                        'accountType' => $accountType,
-                        'points' => [],
-                    ];
-                }
-
-                $weeklySeries[$subscriptionId]['points'][] = $point;
-                continue;
-            }
-
-            if ($usageType === '5h' && SubscriptionStatusService::isWorkspaceAccountType($accountType)) {
-                if (! isset($fiveHourSeries[$subscriptionId])) {
-                    $fiveHourSeries[$subscriptionId] = [
-                        'label' => $label,
-                        'accountType' => $accountType,
-                        'points' => [],
-                    ];
-                }
-
-                $fiveHourSeries[$subscriptionId]['points'][] = $point;
-            }
-        }
-
-        return [
-            'weekly' => $this->finalizeTimeSeries(array_values($weeklySeries)),
-            'five_hour' => $this->finalizeTimeSeries(array_values($fiveHourSeries)),
-        ];
-    }
-
-    /**
-     * @param array<int, array{
-     *     label: string,
-     *     accountType: string,
-     *     points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     * }> $series
-     *
-     * @return array<int, array{
-     *     label: string,
-     *     accountType: string,
-     *     color: string,
-     *     points: array<int, array{time: string, minute: int, percent: int, at: string}>
-     * }>
-     */
-    private function finalizeTimeSeries(array $series): array
-    {
-        $series = array_values(array_filter($series, static function (array $item): bool {
-            return ($item['points'] ?? []) !== [];
-        }));
-
-        usort($series, static function (array $a, array $b): int {
-            return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
-        });
-
-        foreach ($series as $index => &$item) {
-            usort($item['points'], static function (array $a, array $b): int {
-                $aMinute = (int) ($a['minute'] ?? 0);
-                $bMinute = (int) ($b['minute'] ?? 0);
-                if ($aMinute === $bMinute) {
-                    return strcmp((string) ($a['at'] ?? ''), (string) ($b['at'] ?? ''));
-                }
-
-                return $aMinute <=> $bMinute;
-            });
-
-            $item['color'] = self::USAGE_CHART_PALETTE[$index % count(self::USAGE_CHART_PALETTE)];
-        }
-        unset($item);
-
-        return $series;
-    }
-
-    private function minuteOfDay(string $dateTime): int
-    {
-        $timestamp = strtotime($dateTime);
-        if ($timestamp === false) {
-            return 0;
-        }
-
-        return ((int) date('G', $timestamp) * 60) + (int) date('i', $timestamp);
-    }
-
-    private function timeLabel(string $dateTime): string
-    {
-        $timestamp = strtotime($dateTime);
-        if ($timestamp === false) {
-            return '--:--';
-        }
-
-        return date('H:i', $timestamp);
     }
 
     private function currentUserId(): int

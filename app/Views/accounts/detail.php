@@ -17,15 +17,24 @@ $labelClass = 'font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-
 $buttonPrimary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-ink transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 $buttonSecondary = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[rgba(38,37,30,0.75)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
 $buttonDanger = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-[color-mix(in_srgb,#cf2d56_40%,transparent_60%)] bg-[color-mix(in_srgb,#cf2d56_14%,#f2f1ed_86%)] px-3 py-2 font-display text-[13px] font-medium tracking-[0.025em] text-[#8f1f3c] transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,#cf2d56_55%,transparent_45%)] hover:shadow-[rgba(0,0,0,0.1)_0_4px_12px]';
-$todayMin = date('Y-m-d\\T00:00');
 $accountPasswordStored = (string) ($account['password_hint'] ?? '');
 $accountPasswordInput = (string) old('password_hint', $accountPasswordStored);
-$chartDateDefault = date('Y-m-d');
+$routerUsage = is_array($routerUsage ?? null) ? $routerUsage : [];
+$routerRequests24h = (int) ($routerUsage['requests_24h'] ?? 0);
+$routerTokens24h = (int) ($routerUsage['tokens_24h'] ?? 0);
+$routerRequests7d = (int) ($routerUsage['requests_7d'] ?? 0);
+$routerTokens7d = (int) ($routerUsage['tokens_7d'] ?? 0);
+$routerCacheRatio7d = (float) ($routerUsage['cache_ratio_7d'] ?? 0);
+$routerLatency7dMs = (int) ($routerUsage['avg_latency_ms_7d'] ?? 0);
+$routerLatency7dLabel = $routerLatency7dMs >= 1000
+    ? number_format($routerLatency7dMs / 1000, 1) . 's'
+    : number_format($routerLatency7dMs) . 'ms';
+$routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
 ?>
 
 <section class="space-y-2">
     <h1>Detail Akun</h1>
-    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Ringkasan identitas akun, konfigurasi free/pro/plus untuk setiap subscription, status workspace, serta histori perubahan usage.</p>
+    <p class="max-w-[760px] font-serif text-[clamp(18px,1.35vw,20px)] leading-[1.45] text-[rgba(38,37,30,0.64)]">Ringkasan identitas akun, konfigurasi free/pro/plus untuk setiap subscription, status workspace, serta observability usage dari 9router.</p>
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-3">
@@ -84,40 +93,27 @@ $chartDateDefault = date('Y-m-d');
 </section>
 
 <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
-    <h2>Grafik Penggunaan Akun Ini</h2>
-    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-        Sumbu vertikal menunjukkan persentase usage, sumbu horizontal menunjukkan waktu update pada tanggal terpilih.
-    </p>
-    <div class="flex flex-wrap items-end gap-2">
-        <label class="<?= $labelClass ?>">
-            Tanggal Data
-            <input
-                type="date"
-                value="<?= esc($chartDateDefault) ?>"
-                data-account-chart-date
-                class="<?= $inputClass ?> w-[220px]"
-            >
-        </label>
-        <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-account-chart-caption>
-            Menampilkan data berdasarkan tanggal terpilih.
-        </p>
-    </div>
-    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
-        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
-            <h3>Usage Weekly</h3>
-            <div
-                id="account-usage-chart-weekly"
-                data-chart-endpoint="/accounts/<?= esc((string) $account['id']) ?>/usage-chart"
-                data-initial-date="<?= esc($chartDateDefault, 'attr') ?>"
-                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
-            ></div>
+    <h2>Usage 9router (Email Akun)</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Ringkasan ini otomatis dihitung dari event 9router berdasarkan email akun ini.</p>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">24 Jam</div>
+            <div class="mt-1 font-display text-[24px] leading-[1.2] text-[rgba(38,37,30,0.86)]"><?= esc(number_format($routerTokens24h)) ?> token</div>
+            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]"><?= esc(number_format($routerRequests24h)) ?> request</div>
         </article>
-        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
-            <h3>Usage 5h</h3>
-            <div
-                id="account-usage-chart-5h"
-                class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2"
-            ></div>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">7 Hari</div>
+            <div class="mt-1 font-display text-[24px] leading-[1.2] text-[rgba(38,37,30,0.86)]"><?= esc(number_format($routerTokens7d)) ?> token</div>
+            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]"><?= esc(number_format($routerRequests7d)) ?> request</div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Cache Ratio 7 Hari</div>
+            <div class="mt-1 font-display text-[24px] leading-[1.2] text-[rgba(38,37,30,0.86)]"><?= esc(number_format($routerCacheRatio7d, 1)) ?>%</div>
+        </article>
+        <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3">
+            <div class="font-ui text-[12px] uppercase tracking-[0.06em] font-medium text-[rgba(38,37,30,0.62)]">Latency Rata-rata 7 Hari</div>
+            <div class="mt-1 font-display text-[24px] leading-[1.2] text-[rgba(38,37,30,0.86)]"><?= esc($routerLatency7dLabel) ?></div>
+            <div class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]">Last seen: <?= esc($routerLastSeen !== '' ? $routerLastSeen : '-') ?></div>
         </article>
     </div>
 </section>
@@ -131,11 +127,6 @@ $chartDateDefault = date('Y-m-d');
 <?php foreach ($subscriptions as $subscription): ?>
     <?php
     $statusClass = $statusClasses[$subscription['status']] ?? $statusClasses['active'];
-    $usageAccent = [
-        '5h' => 'border-[color-mix(in_srgb,#9fbbe0_36%,rgba(38,37,30,0.1)_64%)] bg-[color-mix(in_srgb,#9fbbe0_16%,#ebeae5_84%)]',
-        'weekly' => 'border-[color-mix(in_srgb,#c0a8dd_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#c0a8dd_16%,#ebeae5_84%)]',
-        'weekly_personal' => 'border-[color-mix(in_srgb,#8fb8aa_34%,rgba(38,37,30,0.1)_66%)] bg-[color-mix(in_srgb,#8fb8aa_16%,#ebeae5_84%)]',
-    ];
     $accountType = \App\Services\SubscriptionStatusService::normalizeAccountType((string) ($subscription['account_type'] ?? 'free'));
     $isWorkspace = \App\Services\SubscriptionStatusService::isWorkspaceAccountType($accountType);
     $isPro = $accountType === 'pro';
@@ -147,17 +138,6 @@ $chartDateDefault = date('Y-m-d');
         : ($proType === 'personal_invite'
             ? 'Invite Akun Pribadi'
             : ($proType === 'seller_account' ? 'Akun dari Seller' : '-'));
-    $usageLabels = $isWorkspace
-        ? ($proType === 'personal_invite'
-            ? [
-                '5h' => 'Usage 5 Jam (Workspace Seller)',
-                'weekly' => 'Usage Mingguan (Workspace Seller)',
-                'weekly_personal' => 'Usage Mingguan (Personal Free)',
-            ]
-            : ($accountType === 'plus'
-                ? ['5h' => 'Usage 5 Jam (Personal)', 'weekly' => 'Usage Mingguan (Personal)']
-                : ['5h' => 'Usage 5 Jam', 'weekly' => 'Usage Mingguan']))
-        : ['weekly' => 'Usage Mingguan'];
     $formId = (int) $subscription['id'];
     ?>
     <section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-3">
@@ -343,71 +323,15 @@ $chartDateDefault = date('Y-m-d');
         <?php else: ?>
             <?php $freePersonalWorkspace = trim((string) ($subscription['personal_workspace_name'] ?? '')); ?>
             <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
-                Akun free tidak menggunakan form subscription. Data weekly tetap bisa dipantau dan diperbarui di bawah.
+                Akun free tidak menggunakan form subscription manual.
             </div>
             <div class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
                 Workspace personal: <?= esc($freePersonalWorkspace !== '' ? $freePersonalWorkspace : '-') ?>
             </div>
         <?php endif; ?>
 
-        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-            <?php foreach ($usageLabels as $type => $label): ?>
-                <?php $usage = $subscription['usages'][$type] ?? null; ?>
-                <article class="rounded-md border p-3 space-y-2 <?= $usageAccent[$type] ?>">
-                    <div class="flex items-start justify-between gap-2">
-                        <h4 class="text-[20px]"><?= esc($label) ?></h4>
-                        <?php if ($usage): ?>
-                            <?php $percent = (int) $usage['remaining_percent']; ?>
-                            <?php
-                            $percentBadge = $percent > 60
-                                ? 'border-[color-mix(in_srgb,#1f8a65_40%,transparent_60%)] text-[#165a44] bg-[color-mix(in_srgb,#1f8a65_16%,#f2f1ed_84%)]'
-                                : ($percent > 30
-                                    ? 'border-[color-mix(in_srgb,#c08532_42%,transparent_58%)] text-[#8f4d10] bg-[color-mix(in_srgb,#c08532_22%,#f2f1ed_78%)]'
-                                    : 'border-[color-mix(in_srgb,#cf2d56_42%,transparent_58%)] text-[#8f1f3c] bg-[color-mix(in_srgb,#cf2d56_16%,#f2f1ed_84%)]');
-                            ?>
-                            <span class="inline-flex items-center rounded-full border px-2 py-[3px] font-display text-[13px] leading-[1.5] <?= $percentBadge ?>"><?= esc((string) $percent) ?>%</span>
-                        <?php endif; ?>
-                    </div>
-
-                    <?php if (! $usage): ?>
-                        <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Data usage belum tersedia.</p>
-                    <?php else: ?>
-                        <?php $percent = (int) $usage['remaining_percent']; ?>
-                        <?php $progressColor = $percent > 60 ? 'bg-success' : ($percent > 30 ? 'bg-gold' : 'bg-danger'); ?>
-                        <div class="h-2.5 w-full overflow-hidden rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200"><span class="block h-full rounded-full <?= $progressColor ?>" style="width: <?= esc((string) $percent) ?>%"></span></div>
-                        <p class="font-mono text-[11px] leading-[1.55] tracking-[-0.01em] text-[rgba(38,37,30,0.76)]">Reset: <?= esc($usage['reset_at'] ?? '-') ?></p>
-                        <button type="button" class="<?= $buttonSecondary ?>" onclick="document.getElementById('usage-modal-<?= esc((string) $usage['id']) ?>').showModal()">Perbarui Usage</button>
-
-                        <dialog id="usage-modal-<?= esc((string) $usage['id']) ?>" class="w-[min(540px,92vw)] rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 p-0 shadow-[rgba(0,0,0,0.14)_0_28px_70px,rgba(0,0,0,0.1)_0_14px_32px]">
-                            <form method="post" action="/usages/<?= esc((string) $usage['id']) ?>/update" class="space-y-3 p-4">
-                                <div class="space-y-1">
-                                    <h3>Perbarui <?= esc($label) ?></h3>
-                                    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">Sesuaikan sisa persentase dan waktu reset untuk subscription ini.</p>
-                                </div>
-
-                                <label class="<?= $labelClass ?>">
-                                    Sisa Persentase
-                                    <input class="<?= $inputClass ?>" type="number" min="0" max="100" name="remaining_percent" required value="<?= esc((string) $usage['remaining_percent']) ?>" data-usage-percent-input>
-                                </label>
-
-                                <label class="<?= $labelClass ?>">
-                                    Waktu Reset
-                                    <input class="<?= $inputClass ?>" type="datetime-local" name="reset_at" min="<?= esc($todayMin) ?>" value="<?= esc(($usage['reset_at'] ?? null) ? date('Y-m-d\\TH:i', strtotime((string) $usage['reset_at'])) : '') ?>" data-usage-reset-input>
-                                </label>
-
-                                <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.55)]" data-usage-reset-note>
-                                    Waktu reset hanya berlaku jika sisa usage di bawah 100%.
-                                </p>
-
-                                <div class="flex flex-wrap gap-2 pt-1">
-                                    <button class="<?= $buttonPrimary ?>" type="submit">Simpan</button>
-                                    <button class="<?= $buttonSecondary ?>" type="button" onclick="document.getElementById('usage-modal-<?= esc((string) $usage['id']) ?>').close()">Batal</button>
-                                </div>
-                            </form>
-                        </dialog>
-                    <?php endif; ?>
-                </article>
-            <?php endforeach; ?>
+        <div class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2 font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+            Penggunaan mengikuti panel <strong class="font-medium text-[rgba(38,37,30,0.82)]">Usage 9router (Email Akun)</strong> di bagian atas halaman ini.
         </div>
     </section>
 <?php endforeach; ?>
@@ -432,243 +356,8 @@ $chartDateDefault = date('Y-m-d');
     </div>
 </section>
 
-<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-2">
-    <h2>Riwayat Perubahan Usage</h2>
-    <div data-history-section="usage" data-account-id="<?= esc((string) $account['id']) ?>">
-        <?= view('accounts/partials/history_usage', [
-            'history' => $usageHistoryPage['rows'] ?? [],
-            'pagination' => $usageHistoryPage['pagination'] ?? [],
-        ]) ?>
-    </div>
-</section>
-
 <script>
 (() => {
-    const weeklyRoot = document.getElementById('account-usage-chart-weekly');
-    const fiveHourRoot = document.getElementById('account-usage-chart-5h');
-    const accountDateInput = document.querySelector('[data-account-chart-date]');
-    const accountCaption = document.querySelector('[data-account-chart-caption]');
-    const accountChartEndpoint = weeklyRoot?.getAttribute('data-chart-endpoint') || '';
-
-    const escapeHtml = (value) => String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-    const toPercent = (value) => {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-            return null;
-        }
-
-        return Math.max(0, Math.min(100, numeric));
-    };
-
-    const toMinute = (value) => {
-        const numeric = Number(value);
-        if (!Number.isFinite(numeric)) {
-            return 0;
-        }
-
-        return Math.max(0, Math.min(1439, Math.round(numeric)));
-    };
-
-    const formatMinute = (minute) => {
-        const safeMinute = toMinute(minute);
-        const hour = String(Math.floor(safeMinute / 60)).padStart(2, '0');
-        const minutes = String(safeMinute % 60).padStart(2, '0');
-        return `${hour}:${minutes}`;
-    };
-
-    const renderTimeSeriesChart = (root, datasets, emptyMessage) => {
-        if (!root) {
-            return;
-        }
-
-        const normalized = (Array.isArray(datasets) ? datasets : [])
-            .map((item) => {
-                const points = (Array.isArray(item?.points) ? item.points : [])
-                    .map((point) => {
-                        const percent = toPercent(point?.percent);
-                        if (percent === null) {
-                            return null;
-                        }
-
-                        const minute = toMinute(point?.minute);
-                        return {
-                            minute,
-                            percent,
-                            time: typeof point?.time === 'string' && point.time !== '' ? point.time : formatMinute(minute),
-                            at: String(point?.at ?? ''),
-                        };
-                    })
-                    .filter((point) => point !== null);
-
-                if (points.length === 0) {
-                    return null;
-                }
-
-                return {
-                    label: String(item?.label ?? 'Subscription'),
-                    color: String(item?.color ?? '#2f6db5'),
-                    accountType: String(item?.accountType ?? 'free'),
-                    points,
-                };
-            })
-            .filter((item) => item !== null);
-
-        if (normalized.length === 0) {
-            root.innerHTML = `<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">${escapeHtml(emptyMessage)}</p>`;
-            return;
-        }
-
-        const width = 880;
-        const height = 340;
-        const margin = { top: 20, right: 18, bottom: 58, left: 42 };
-        const plotWidth = width - margin.left - margin.right;
-        const plotHeight = height - margin.top - margin.bottom;
-        const yFromPercent = (percent) => margin.top + ((100 - percent) / 100) * plotHeight;
-        const xFromMinute = (minute) => margin.left + (toMinute(minute) / 1439) * plotWidth;
-        const ticks = [0, 20, 40, 60, 80, 100];
-        const timeTicks = [0, 360, 720, 1080, 1439];
-
-        const gridLines = ticks.map((tick) => {
-            const y = yFromPercent(tick);
-            return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(38,37,30,0.14)" stroke-width="1" />
-                <text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="rgba(38,37,30,0.62)">${tick}%</text>`;
-        }).join('');
-
-        const xAxisTicks = timeTicks.map((minute) => {
-            const x = xFromMinute(minute);
-            return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" stroke="rgba(38,37,30,0.1)" stroke-width="1" />
-                <text x="${x}" y="${height - margin.bottom + 22}" text-anchor="middle" font-size="11" fill="rgba(38,37,30,0.62)">${formatMinute(minute)}</text>`;
-        }).join('');
-
-        const seriesSvg = normalized.map((item) => {
-            const pathD = item.points
-                .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFromMinute(point.minute)} ${yFromPercent(point.percent)}`)
-                .join(' ');
-
-            const line = `<path d="${pathD}" fill="none" stroke="${item.color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
-                <title>${escapeHtml(item.label)}</title>
-            </path>`;
-
-            const circles = item.points.map((point) => `<circle cx="${xFromMinute(point.minute)}" cy="${yFromPercent(point.percent)}" r="3.6" fill="${item.color}" stroke="white" stroke-width="1.3">
-                <title>${escapeHtml(item.label)} · ${escapeHtml(point.time)} · ${point.percent}%</title>
-            </circle>`).join('');
-
-            return `${line}${circles}`;
-        }).join('');
-
-        const legendItems = normalized.map((item) => {
-            const lastPoint = item.points[item.points.length - 1];
-            const valueText = lastPoint ? `${lastPoint.time} · ${lastPoint.percent}%` : '-';
-
-            return `<li class="flex items-start gap-2 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 px-2 py-1.5">
-                <span class="mt-[3px] h-2.5 w-2.5 shrink-0 rounded-full" style="background:${escapeHtml(item.color)}"></span>
-                <span class="min-w-0">
-                    <span class="block truncate font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.82)]">${escapeHtml(item.label)}</span>
-                    <span class="font-mono text-[11px] leading-[1.45] text-[rgba(38,37,30,0.62)]">${escapeHtml(valueText)}</span>
-                </span>
-            </li>`;
-        }).join('');
-
-        root.innerHTML = `
-            <div class="space-y-3">
-                <div class="overflow-x-auto">
-                    <svg viewBox="0 0 ${width} ${height}" class="min-w-[680px] w-full h-auto rounded-md border border-[rgba(38,37,30,0.1)] bg-[color-mix(in_srgb,#f2f1ed_85%,white_15%)] p-2">
-                        ${gridLines}
-                        ${xAxisTicks}
-                        ${seriesSvg}
-                        <text x="${margin.left + (plotWidth / 2)}" y="${height - margin.bottom + 40}" text-anchor="middle" font-size="12" fill="rgba(38,37,30,0.72)">Waktu</text>
-                    </svg>
-                </div>
-                <ul class="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">${legendItems}</ul>
-            </div>
-        `;
-    };
-
-    const applyAccountCaption = (dateText, weeklyCount, fiveHourCount) => {
-        if (!accountCaption) {
-            return;
-        }
-
-        accountCaption.textContent = `Tanggal data: ${dateText} · weekly ${weeklyCount} seri · 5h ${fiveHourCount} seri`;
-    };
-
-    const setAccountChartLoading = (isLoading) => {
-        if (!weeklyRoot || !fiveHourRoot) {
-            return;
-        }
-
-        weeklyRoot.classList.toggle('opacity-70', isLoading);
-        weeklyRoot.classList.toggle('pointer-events-none', isLoading);
-        fiveHourRoot.classList.toggle('opacity-70', isLoading);
-        fiveHourRoot.classList.toggle('pointer-events-none', isLoading);
-    };
-
-    const loadAccountChartByDate = async (dateValue) => {
-        if (!weeklyRoot || !fiveHourRoot || !accountChartEndpoint || !dateValue) {
-            return;
-        }
-
-        setAccountChartLoading(true);
-        try {
-            const response = await fetch(`${accountChartEndpoint}?date=${encodeURIComponent(dateValue)}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const payload = await response.json();
-            if (!payload?.success || typeof payload.data !== 'object' || payload.data === null) {
-                throw new Error('Invalid usage chart response.');
-            }
-
-            const weeklySeries = Array.isArray(payload.data.weekly) ? payload.data.weekly : [];
-            const fiveHourSeries = Array.isArray(payload.data.five_hour) ? payload.data.five_hour : [];
-
-            renderTimeSeriesChart(weeklyRoot, weeklySeries, 'Belum ada data weekly pada tanggal ini.');
-            renderTimeSeriesChart(fiveHourRoot, fiveHourSeries, 'Belum ada data usage 5h pada tanggal ini.');
-            applyAccountCaption(payload.date || dateValue, weeklySeries.length, fiveHourSeries.length);
-        } catch (error) {
-            weeklyRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data weekly pada tanggal tersebut.</p>';
-            fiveHourRoot.innerHTML = '<p class="font-ui text-[13px] text-[rgba(38,37,30,0.55)]">Gagal memuat data 5h pada tanggal tersebut.</p>';
-            applyAccountCaption(dateValue, 0, 0);
-        } finally {
-            setAccountChartLoading(false);
-        }
-    };
-
-    if (weeklyRoot && fiveHourRoot) {
-        const initialDate = accountDateInput?.value || weeklyRoot.getAttribute('data-initial-date') || '';
-        if (accountDateInput && initialDate !== '') {
-            accountDateInput.value = initialDate;
-        }
-
-        if (accountChartEndpoint && initialDate !== '') {
-            loadAccountChartByDate(initialDate);
-        } else {
-            renderTimeSeriesChart(weeklyRoot, [], 'Belum ada data weekly pada tanggal ini.');
-            renderTimeSeriesChart(fiveHourRoot, [], 'Belum ada data usage 5h pada tanggal ini.');
-            applyAccountCaption(initialDate !== '' ? initialDate : '-', 0, 0);
-        }
-    }
-
-    accountDateInput?.addEventListener('change', () => {
-        const selectedDate = accountDateInput.value;
-        if (selectedDate !== '') {
-            loadAccountChartByDate(selectedDate);
-        }
-    });
-
     const historySections = Array.from(document.querySelectorAll('[data-history-section][data-account-id]'));
     historySections.forEach((section) => {
         section.addEventListener('click', async (event) => {
@@ -864,38 +553,6 @@ $chartDateDefault = date('Y-m-d');
         accountTypeInput?.addEventListener('change', syncWorkspaceCreateForm);
         proTypeSelect.addEventListener('change', syncWorkspaceCreateForm);
         syncWorkspaceCreateForm();
-    });
-
-    const usageForms = Array.from(document.querySelectorAll('dialog form[action^="/usages/"]'));
-    usageForms.forEach((form) => {
-        const percentInput = form.querySelector('[data-usage-percent-input]');
-        const resetInput = form.querySelector('[data-usage-reset-input]');
-        const note = form.querySelector('[data-usage-reset-note]');
-
-        if (!percentInput || !resetInput) {
-            return;
-        }
-
-        const syncResetInput = () => {
-            const value = Number(percentInput.value || 0);
-            const needsReset = value < 100;
-
-            resetInput.required = needsReset;
-            resetInput.disabled = !needsReset;
-            if (!needsReset) {
-                resetInput.value = '';
-            }
-
-            if (note) {
-                note.textContent = needsReset
-                    ? 'Waktu reset wajib diisi karena sisa usage di bawah 100%.'
-                    : 'Sisa usage 100%: waktu reset tidak diperlukan.';
-            }
-        };
-
-        percentInput.addEventListener('input', syncResetInput);
-        percentInput.addEventListener('change', syncResetInput);
-        syncResetInput();
     });
 
     const passwordGroups = Array.from(document.querySelectorAll('[data-password-field-group]'));

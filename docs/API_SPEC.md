@@ -1,50 +1,122 @@
-
 # API_SPEC.md — API Specification
 
 ## Base URL
-/api
+- `/api`
+
+## Auth
+- Mayoritas endpoint API memakai session login (`auth` filter).
+- Khusus `POST /api/router/ingest` tidak memakai session karena dipanggil collector lokal.
+- Jika `router.ingestKey` diaktifkan, kirim header: `X-Router-Ingest-Key: <INGEST_SECRET>`.
 
 ---
 
-## Accounts
+## Accounts (Auth Required)
 
 ### GET /api/accounts
-Get all accounts
+Get all accounts.
 
 ### GET /api/accounts/{id}
-Get account detail
+Get account detail.
 
 ### POST /api/accounts
-Create account
+Create account.
 
 ### PUT /api/accounts/{id}
-Update account
+Update account.
 
 ### DELETE /api/accounts/{id}
-Delete account
+Delete account.
 
 ---
 
-## Account Usage
+## Subscriptions (Auth Required)
 
-### POST /api/account-usages/{id}/update
-Update usage
+### GET /api/subscriptions
+Get all subscriptions.
 
-Body:
-{
-  "remaining_percent": 70,
-  "reset_at": "2026-04-20 14:00:00"
-}
+### GET /api/subscriptions/{id}
+Get subscription detail.
+
+### POST /api/subscriptions
+Create subscription.
+
+### PUT /api/subscriptions/{id}
+Update subscription.
+
+### DELETE /api/subscriptions/{id}
+Delete subscription.
 
 ---
 
-## Telegram
+## Telegram (Auth Required)
+
+### GET /api/telegram/settings
+Get telegram settings untuk user login.
+
+### PUT /api/telegram/settings
+Update telegram settings untuk user login.
 
 ### POST /api/telegram/test
-Send test message
+Send test message ke chat Telegram aktif.
+
+---
+
+## Router Ingest (No Session Auth)
+
+### POST /api/router/ingest
+Menerima batch event usage 9router dari collector/shipper lokal.
+
+Body ringkas:
+```json
+{
+  "source": "laptop-viasco",
+  "provider": "codex",
+  "events": [
+    {
+      "provider": "codex",
+      "model": "gpt-5.3-codex-high-review",
+      "router_account_ref": "57b02c20...",
+      "account_email": "contoh@email.com",
+      "input_tokens": 166027,
+      "output_tokens": 212,
+      "cache_read_tokens": 165248,
+      "reasoning_tokens": 0,
+      "duration_ms": 8132,
+      "status": "complete",
+      "event_at": "2026-05-18 08:08:34"
+    }
+  ]
+}
+```
+
+---
+
+## Router Analytics (Auth Required)
+
+### GET /api/router/analytics/summary
+Ringkasan usage observability 9router per provider/account/model.
+
+Query opsional:
+- `provider` (contoh: `codex`)
+- `days` (contoh: `30`)
+
+### GET /api/router/analytics/charts
+Data siap visualisasi dashboard observability:
+- token harian
+- aktivitas per jam
+- usage per akun
+- distribusi model
+- cache ratio harian
+- latency harian
+
+Query opsional:
+- `provider` (contoh: `codex`)
+- `days` (contoh: `30`)
+- `top` (contoh: `10`)
 
 ---
 
 ## Notes
-- Expired = masa invite / subscription habis
-- Tidak mempengaruhi akun utama, hanya akses langganan
+- `expired` = masa invite/subscription habis.
+- Status subscription tidak mempengaruhi akun utama, hanya akses langganan/workspace.
+- Sumber usage dashboard/detail akun sekarang dari event 9router (bukan input manual legacy).

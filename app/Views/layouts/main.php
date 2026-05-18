@@ -16,8 +16,8 @@ $userEmail = (string) (session('user_email') ?? '');
 $isDashboard = in_array($path, ['', '/'], true);
 $isAccounts = str_starts_with($path, 'accounts');
 $isProfile = str_starts_with($path, 'profile');
-$isTelegram = str_starts_with($path, 'telegram');
-$isUserMenuActive = $isProfile || $isTelegram;
+$isSettings = str_starts_with($path, 'settings') || str_starts_with($path, 'telegram');
+$isUserMenuActive = $isProfile || $isSettings;
 
 $navActiveClass = 'no-underline rounded-full border border-[color-mix(in_srgb,#26251e_24%,transparent_76%)] bg-surface500 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]';
 $navInactiveClass = 'no-underline rounded-full border border-[rgba(38,37,30,0.1)] bg-surface400 px-[10px] py-[3px] font-display text-[13px] font-medium tracking-[0.035em] leading-[1.5] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.2)]';
@@ -62,9 +62,9 @@ $dropdownToggleInactiveClass = 'inline-flex cursor-pointer items-center gap-1.5 
                         <a href="/profile" class="<?= $isProfile
                             ? 'block rounded-md border border-[color-mix(in_srgb,#26251e_18%,transparent_82%)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] font-medium text-[rgba(38,37,30,0.92)]'
                             : 'block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300' ?>">Profile</a>
-                        <a href="/telegram" class="<?= $isTelegram
+                        <a href="/settings" class="<?= $isSettings
                             ? 'block rounded-md border border-[color-mix(in_srgb,#26251e_18%,transparent_82%)] bg-surface300 px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] font-medium text-[rgba(38,37,30,0.92)]'
-                            : 'block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300' ?>">Pengaturan Telegram</a>
+                            : 'block rounded-md px-2.5 py-2 no-underline font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300' ?>">Settings</a>
                         <form method="post" action="/logout" class="mt-1 border-t border-[rgba(38,37,30,0.1)] pt-1">
                             <button class="block w-full rounded-md px-2.5 py-2 text-left font-ui text-[13px] leading-[1.44] text-[rgba(38,37,30,0.82)] hover:bg-surface300 hover:text-danger" type="submit">Logout</button>
                         </form>
