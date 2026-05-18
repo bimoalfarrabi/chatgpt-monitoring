@@ -75,3 +75,16 @@
 # router.logPath = /path/to/9router.log
 # router.provider = 9router
 # router.ingestKey = change-me-for-production ; opsional (sangat direkomendasikan untuk production)
+
+#--------------------------------------------------------------------
+# 9ROUTER LOG SHIPPER (LOCAL DEVICE -> SHARED HOSTING INGEST)
+#--------------------------------------------------------------------
+
+# ROUTER_SHIPPER_LOG_PATH = /home/user/.9router/logs/9router.log
+# ROUTER_SHIPPER_ENDPOINT = https://domainkamu.com/api/router/ingest
+# ROUTER_SHIPPER_INGEST_KEY = change-me-if-enabled
+# ROUTER_SHIPPER_SOURCE = laptop-pribadi
+# ROUTER_SHIPPER_PROVIDER = 9router
+# ROUTER_SHIPPER_STATE_FILE = /home/user/.9router/logs/.router_shipper_state.json
+# ROUTER_SHIPPER_MAX_EVENTS = 500
+# ROUTER_SHIPPER_TIMEOUT = 20

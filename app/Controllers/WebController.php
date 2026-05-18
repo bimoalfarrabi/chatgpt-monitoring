@@ -9,6 +9,7 @@ use App\Models\SubscriptionModel;
 use App\Models\SubscriptionRenewalHistoryModel;
 use App\Models\TelegramSettingModel;
 use App\Models\UserModel;
+use App\Services\RouterUsageCollectorService;
 use App\Services\SubscriptionStatusService;
 use App\Services\TelegramService;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -74,6 +75,38 @@ class WebController extends BaseController
             'routerUsageByEmail'=> $routerUsageByEmail,
             'pageTitle'         => 'Dashboard',
         ]);
+    }
+
+    public function digestRouterDataFromDashboard(): RedirectResponse
+    {
+        $sourceFile = trim((string) env('router.logPath', ''));
+        $provider = trim((string) env('router.provider', '9router'));
+        $resetCursor = (string) ($this->request->getPost('reset_cursor') ?? '') === '1';
+
+        if ($sourceFile === '') {
+            return redirect()->to('/')->with(
+                'error',
+                'router.logPath belum diisi di .env. Endpoint ingest hanya diperlukan untuk mode shipper dari mesin lain.'
+            );
+        }
+
+        try {
+            $collector = new RouterUsageCollectorService();
+            $collectResult = $collector->collectFromLogFile($sourceFile, $provider, $resetCursor);
+            $syncResult = $this->syncLocalAccountsIncrementalFromRouter();
+        } catch (\Throwable $e) {
+            return redirect()->to('/')->with('error', 'Digest 9router gagal: ' . $e->getMessage());
+        }
+
+        $message = sprintf(
+            'Digest selesai. Inserted: %d, Duplicate: %d, Parsed: %d, Sync akun baru: %d.',
+            (int) ($collectResult['inserted'] ?? 0),
+            (int) ($collectResult['duplicates'] ?? 0),
+            (int) ($collectResult['parsed'] ?? 0),
+            (int) ($syncResult['accounts_created'] ?? 0)
+        );
+
+        return redirect()->to('/')->with('success', $message);
     }
 
     public function accountsIndex(): string
@@ -1390,6 +1423,119 @@ class WebController extends BaseController
     private function defaultWorkspaceNameFromEmail(string $email): string
     {
         return substr($this->defaultAccountNameFromEmail($email) . ' Workspace', 0, 120);
+    }
+
+    /**
+     * @return array{
+     *   checked:int,
+     *   accounts_created:int,
+     *   subscriptions_created:int,
+     *   mappings_updated:int
+     * }
+     */
+    private function syncLocalAccountsIncrementalFromRouter(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('ai_router_accounts')) {
+            return [
+                'checked' => 0,
+                'accounts_created' => 0,
+                'subscriptions_created' => 0,
+                'mappings_updated' => 0,
+            ];
+        }
+
+        $rows = $db->table('ai_router_accounts')
+            ->select('id, email')
+            ->where('email IS NOT NULL', null, false)
+            ->where('email !=', '')
+            ->get()
+            ->getResultArray();
+
+        $checked = 0;
+        $accountsCreated = 0;
+        $subscriptionsCreated = 0;
+        $mappingsUpdated = 0;
+        $userId = $this->currentUserId();
+
+        foreach ($rows as $row) {
+            $email = $this->normalizeImportEmail((string) ($row['email'] ?? ''));
+            if ($email === null) {
+                continue;
+            }
+
+            $checked++;
+            $account = $this->accounts->where('email', $email)->first();
+            if (! is_array($account)) {
+                $accountId = (int) $this->accounts->insert([
+                    'account_name' => $this->defaultAccountNameFromEmail($email),
+                    'email' => $email,
+                    'password_hint' => null,
+                    'notes' => null,
+                ], true);
+
+                if ($accountId <= 0) {
+                    continue;
+                }
+
+                $account = $this->accounts->find($accountId);
+                $accountsCreated++;
+            }
+
+            $accountId = (int) (($account['id'] ?? 0));
+            if ($accountId <= 0) {
+                continue;
+            }
+
+            $subscription = $this->subscriptions
+                ->where('account_id', $accountId)
+                ->orderBy('id', 'DESC')
+                ->first();
+
+            $subscriptionId = (int) (($subscription['id'] ?? 0));
+            if ($subscriptionId <= 0) {
+                $subscriptionId = (int) $this->subscriptions->insert([
+                    'account_id' => $accountId,
+                    'account_type' => 'free',
+                    'pro_account_type' => null,
+                    'workspace_name' => null,
+                    'personal_workspace_name' => $this->defaultWorkspaceNameFromEmail($email),
+                    'is_workspace_deactivated' => 0,
+                    'store_source' => '9router_import',
+                    'subscription_type' => 'Free (9router)',
+                    'subscribed_at' => null,
+                    'is_one_month_duration' => 0,
+                    'expired_at' => null,
+                    'status' => 'active',
+                ], true);
+
+                if ($subscriptionId > 0) {
+                    $this->syncUsagesForSubscription($subscriptionId, 'free', null, date('Y-m-d H:i:s'));
+                    $subscriptionsCreated++;
+                }
+            }
+
+            $routerAccountId = (int) ($row['id'] ?? 0);
+            if ($routerAccountId > 0) {
+                $db->table('ai_router_accounts')
+                    ->where('id', $routerAccountId)
+                    ->set([
+                        'user_id' => $userId,
+                        'account_id' => $accountId,
+                        'subscription_id' => $subscriptionId > 0 ? $subscriptionId : null,
+                        'mapping_status' => 'mapped',
+                    ])
+                    ->update();
+                $mappingsUpdated++;
+            }
+        }
+
+        return [
+            'checked' => $checked,
+            'accounts_created' => $accountsCreated,
+            'subscriptions_created' => $subscriptionsCreated,
+            'mappings_updated' => $mappingsUpdated,
+        ];
     }
 
     /**

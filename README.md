@@ -116,6 +116,30 @@ Dashboard:
 - Halaman `/` punya panel **Grafik Observability 9router** (token harian, aktivitas per jam, usage per akun, distribusi model, cache ratio, latency) dari endpoint `api/router/analytics/charts`.
 - Card/tabel usage di dashboard dan halaman detail akun juga memakai sumber data 9router (bukan input manual lama).
 
+## 9router Shipper (Env-Based)
+Jika 9router berjalan di laptop lokal dan web di shared hosting, simpan konfigurasi shipper di `.env` laptop:
+
+```ini
+ROUTER_SHIPPER_LOG_PATH=/home/viasco/.9router/logs/9router.log
+ROUTER_SHIPPER_ENDPOINT=https://chatgpt.viasco.my.id/api/router/ingest
+ROUTER_SHIPPER_INGEST_KEY=
+ROUTER_SHIPPER_SOURCE=laptop-viasco
+ROUTER_SHIPPER_PROVIDER=9router
+ROUTER_SHIPPER_STATE_FILE=/home/viasco/.9router/logs/.router_shipper_state.json
+ROUTER_SHIPPER_MAX_EVENTS=500
+ROUTER_SHIPPER_TIMEOUT=20
+```
+
+Setelah itu command bisa dipersingkat:
+
+```bash
+php scripts/router_log_shipper.php
+```
+
+Opsional:
+- `php scripts/router_log_shipper.php --dry-run`
+- `php scripts/router_log_shipper.php --max-events=1000`
+
 ## Reminder Command
 Kirim reminder otomatis untuk subscription `expiring_soon` dan `expired`:
 

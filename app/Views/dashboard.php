@@ -11,6 +11,9 @@ $routerActive24h = 0;
 $routerTotalRequests24h = 0;
 $routerTotalTokens24h = 0;
 $routerTopAccount7d = ['email' => '-', 'tokens_7d' => 0];
+$routerDigestLogPath = trim((string) env('router.logPath', ''));
+$routerDigestProvider = trim((string) env('router.provider', '9router'));
+$routerDigestConfigured = $routerDigestLogPath !== '';
 
 $urutExpired = $subscriptions;
 usort($urutExpired, static function (array $a, array $b): int {
@@ -90,6 +93,38 @@ $sectionTitle = 'mb-2 space-y-2';
     <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
         Grafik ini membaca event usage 9router (input/output token, cache, reasoning, latency, dan distribusi akun/model).
     </p>
+    <div class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 px-3 py-2.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="space-y-1">
+                <div class="font-display text-[14px] leading-[1.45] text-[rgba(38,37,30,0.82)]">Digest Data 9router dari Log Lokal</div>
+                <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.6)]">
+                    Mode ini membaca file log lokal (`router.logPath`) dengan provider default `<?= esc($routerDigestProvider !== '' ? $routerDigestProvider : '9router') ?>`.
+                </p>
+            </div>
+            <form method="post" action="/dashboard/router/digest" class="flex flex-wrap items-center gap-2">
+                <label class="inline-flex items-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface400 px-2 py-[4px] font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.7)]">
+                    <input type="checkbox" name="reset_cursor" value="1" class="accent-[rgba(38,37,30,0.75)]">
+                    Reset cursor
+                </label>
+                <button
+                    type="submit"
+                    class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface400 px-3 py-[5px] font-display text-[13px] font-medium tracking-[0.02em] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.22)] disabled:cursor-not-allowed disabled:opacity-55"
+                    <?= $routerDigestConfigured ? '' : 'disabled' ?>
+                >
+                    Digest Sekarang
+                </button>
+            </form>
+        </div>
+        <?php if (! $routerDigestConfigured): ?>
+            <p class="mt-2 font-ui text-[12px] leading-[1.4] text-[#8f1f3c]">
+                `router.logPath` belum diisi di `.env`. Isi dulu di halaman Settings agar tombol digest bisa dipakai.
+            </p>
+        <?php else: ?>
+            <p class="mt-2 font-mono text-[11px] leading-[1.5] tracking-[-0.01em] text-[rgba(38,37,30,0.62)]">
+                Log path: <?= esc($routerDigestLogPath) ?>
+            </p>
+        <?php endif; ?>
+    </div>
     <div class="flex flex-wrap items-end gap-2">
         <label class="font-ui text-[12px] uppercase tracking-[0.05em] font-medium text-[rgba(38,37,30,0.62)]">
             Provider

@@ -16,6 +16,7 @@ $routes->post('api/router/ingest', 'Api\\RouterIngestController::ingest');
 
 $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->get('/', 'WebController::dashboard');
+    $routes->post('dashboard/router/digest', 'WebController::digestRouterDataFromDashboard');
 
     $routes->get('accounts', 'WebController::accountsIndex');
     $routes->post('accounts/create', 'WebController::createAccount');

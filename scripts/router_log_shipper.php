@@ -39,8 +39,66 @@ final class RouterLogShipper
 
     public function __construct(array $argv)
     {
+        $this->loadProjectEnv();
         $this->config = $this->buildConfig($argv);
         $this->state = $this->loadState();
+    }
+
+    private function loadProjectEnv(): void
+    {
+        $root = dirname(__DIR__);
+        $primaryEnv = $root . '/.env';
+        $fallbackEnv = $root . '/env';
+        $envFile = is_file($primaryEnv) ? $primaryEnv : (is_file($fallbackEnv) ? $fallbackEnv : null);
+
+        if ($envFile === null) {
+            return;
+        }
+
+        $lines = @file($envFile, FILE_IGNORE_NEW_LINES);
+        if (! is_array($lines) || $lines === []) {
+            return;
+        }
+
+        foreach ($lines as $rawLine) {
+            if (! is_string($rawLine)) {
+                continue;
+            }
+
+            $line = trim($rawLine);
+            if ($line === '' || str_starts_with($line, '#') || str_starts_with($line, ';')) {
+                continue;
+            }
+
+            if (str_starts_with($line, 'export ')) {
+                $line = trim(substr($line, 7));
+            }
+
+            if (! str_contains($line, '=')) {
+                continue;
+            }
+
+            [$keyPart, $valuePart] = explode('=', $line, 2);
+            $key = trim($keyPart);
+            $value = trim($valuePart);
+
+            if ($key === '') {
+                continue;
+            }
+
+            if ((str_starts_with($value, "'") && str_ends_with($value, "'"))
+                || (str_starts_with($value, '"') && str_ends_with($value, '"'))) {
+                $value = substr($value, 1, -1);
+            }
+
+            if (getenv($key) !== false) {
+                continue;
+            }
+
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
     }
 
     public function run(): int

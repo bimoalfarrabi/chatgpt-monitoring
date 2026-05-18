@@ -615,6 +615,25 @@ Contoh minimal event:
 
 Script: `scripts/router_log_shipper.php`
 
+Script ini bisa membaca env berikut:
+
+```ini
+ROUTER_SHIPPER_LOG_PATH=/path/to/9router.log
+ROUTER_SHIPPER_ENDPOINT=https://domainkamu.com/api/router/ingest
+ROUTER_SHIPPER_INGEST_KEY=
+ROUTER_SHIPPER_SOURCE=laptop-pribadi
+ROUTER_SHIPPER_PROVIDER=9router
+ROUTER_SHIPPER_STATE_FILE=/path/to/.router_shipper_state.json
+ROUTER_SHIPPER_MAX_EVENTS=500
+ROUTER_SHIPPER_TIMEOUT=20
+```
+
+Jika env sudah lengkap, cukup jalankan:
+
+```bash
+php scripts/router_log_shipper.php
+```
+
 Contoh eksekusi:
 
 ```bash
