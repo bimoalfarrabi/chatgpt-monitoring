@@ -32,6 +32,11 @@ $routerLatency7dLabel = $routerLatency7dMs >= 1000
 $routerLastSeen = trim((string) ($routerUsage['last_event_at'] ?? ''));
 $routerAccountEmail = strtolower(trim((string) ($account['email'] ?? '')));
 $routerProviderDefault = trim((string) env('router.provider', ''));
+$usageTypeLabels = [
+    '5h' => 'session',
+    'weekly' => 'weekly',
+    'weekly_personal' => 'weekly personal',
+];
 ?>
 
 <section class="space-y-2">
@@ -174,6 +179,64 @@ $routerProviderDefault = trim((string) env('router.provider', ''));
     </div>
     <div data-account-share-chart class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3"></div>
 </section>
+
+<?php if ($subscriptions !== []): ?>
+<section class="mt-6 <?= $cardBase ?> bg-surface400 space-y-3">
+    <h2>Persentase Usage (Style 9router)</h2>
+    <p class="font-ui text-[13px] leading-[1.44] tracking-[0.01em] text-[rgba(38,37,30,0.55)]">
+        Menampilkan penggunaan per tipe quota pada akun ini: format <span class="font-mono">terpakai/100</span> dan persentase sisa.
+    </p>
+    <div class="space-y-2.5">
+        <?php foreach ($subscriptions as $subscription): ?>
+            <?php $usageTypes = is_array($subscription['usage_types'] ?? null) ? $subscription['usage_types'] : []; ?>
+            <?php if ($usageTypes === []): ?>
+                <?php continue; ?>
+            <?php endif; ?>
+            <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="font-display text-[15px] leading-[1.45] text-[rgba(38,37,30,0.82)]">
+                        <?= esc((string) ($subscription['subscription_type'] ?? 'Subscription')) ?>
+                    </div>
+                    <div class="font-ui text-[12px] text-[rgba(38,37,30,0.6)]">
+                        <?= esc((string) \App\Services\SubscriptionStatusService::humanize((string) ($subscription['status'] ?? 'active'))) ?>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <?php foreach ($usageTypes as $usageType): ?>
+                        <?php $usage = $subscription['usages'][$usageType] ?? null; ?>
+                        <?php if (! is_array($usage)): ?>
+                            <?php continue; ?>
+                        <?php endif; ?>
+                        <?php
+                        $remaining = max(0, min(100, (int) ($usage['remaining_percent'] ?? 0)));
+                        $used = max(0, 100 - $remaining);
+                        $barColor = $remaining >= 50
+                            ? 'bg-[color-mix(in_srgb,#1f8a65_70%,#9fc9a2_30%)]'
+                            : 'bg-[color-mix(in_srgb,#cf2d56_72%,#dfa88f_28%)]';
+                        $label = $usageTypeLabels[$usageType] ?? $usageType;
+                        $resetAt = trim((string) ($usage['reset_at'] ?? ''));
+                        ?>
+                        <div class="space-y-1.5 rounded-md border border-[rgba(38,37,30,0.1)] bg-surface400 p-2">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="font-ui text-[13px] text-[rgba(38,37,30,0.8)]"><?= esc($label) ?></span>
+                                <span class="font-display text-[13px] font-medium <?= $remaining >= 50 ? 'text-[#165a44]' : 'text-[#8f1f3c]' ?>"><?= esc(number_format($remaining)) ?>%</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-2 font-mono text-[11px] text-[rgba(38,37,30,0.62)]">
+                                <span><?= esc(number_format($used)) ?> / 100</span>
+                                <span><?= esc($resetAt !== '' ? ('reset ' . $resetAt) : '-') ?></span>
+                            </div>
+                            <div class="h-2 rounded-full border border-[rgba(38,37,30,0.1)] bg-surface200 overflow-hidden">
+                                <span class="block h-full rounded-full <?= $barColor ?>" style="width:<?= esc((string) max(2, $remaining)) ?>%"></span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+</section>
+<?php endif; ?>
 
 <?php if ($subscriptions === []): ?>
     <section class="mt-6 rounded-lg border border-[rgba(38,37,30,0.1)] bg-surface400 px-4 py-3 font-ui text-[13px] text-[rgba(38,37,30,0.55)]">
