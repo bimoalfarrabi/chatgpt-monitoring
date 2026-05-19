@@ -19,8 +19,8 @@ $routerShipperProvider = trim((string) env('ROUTER_SHIPPER_PROVIDER', '9router')
 $routerShipperEndpoint = trim((string) env('ROUTER_SHIPPER_ENDPOINT', ''));
 $routerEffectiveLogPath = $routerDigestLogPath !== '' ? $routerDigestLogPath : $routerShipperLogPath;
 $routerCommandExposeLog = trim($routerEffectiveLogPath) !== ''
-    ? '9router 2>&1 | tee -a ' . $routerEffectiveLogPath
-    : '9router 2>&1 | tee -a /path/to/9router.log';
+    ? '9router --log | tee -a ' . $routerEffectiveLogPath
+    : '9router --log | tee -a /path/to/9router.log';
 $routerCommandShipper = '/opt/lampp/bin/php scripts/router_log_shipper.php';
 $routerCommandShipperFull = 'php scripts/router_log_shipper.php --log='
     . ($routerShipperLogPath !== '' ? $routerShipperLogPath : '/path/to/9router.log')
@@ -231,7 +231,7 @@ $sectionTitle = 'mb-2 space-y-2';
     <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
             <div class="flex flex-wrap items-center justify-between gap-2">
-                <h3>1) Jalankan Router + Expose Log</h3>
+            <h3>1) Jalankan Router + Tulis Log</h3>
                 <button
                     class="inline-flex items-center justify-center gap-1.5 rounded-full border border-[rgba(38,37,30,0.14)] bg-surface400 px-3 py-[5px] font-display text-[13px] font-medium tracking-[0.02em] text-[rgba(38,37,30,0.8)] transition-colors duration-150 hover:text-danger hover:border-[rgba(38,37,30,0.22)]"
                     type="button"
@@ -241,7 +241,7 @@ $sectionTitle = 'mb-2 space-y-2';
             </div>
             <pre class="overflow-x-auto rounded-md border border-[rgba(38,37,30,0.12)] bg-surface400 px-3 py-2 font-mono text-[11px] leading-[1.5] tracking-[-0.01em] text-[rgba(38,37,30,0.78)]"><code><?= esc($routerCommandExposeLog) ?></code></pre>
             <p class="font-ui text-[12px] leading-[1.4] text-[rgba(38,37,30,0.6)]">
-                Tujuan: output runtime 9router ditulis ke file log untuk diproses collector/shipper.
+                Tujuan: menulis baris log usage (`[USAGE]`, `[REQUEST]`, dll) ke file log untuk diproses collector/shipper.
             </p>
         </article>
         <article class="rounded-md border border-[rgba(38,37,30,0.1)] bg-surface300 p-3 space-y-2">
